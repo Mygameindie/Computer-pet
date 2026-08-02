@@ -33,25 +33,42 @@ html, body {
 .pet-canvas {
   display: block;
   cursor: grab;
+  transform-origin: 50% 100%;   /* squash from the feet, like a real landing */
 }
 
 .pet.dragging .pet-canvas { cursor: grabbing; }
 
+/* ---- Landing ------------------------------------------------------------ */
+/* Played by pet_desktop.js when the main process reports that a falling pet
+   hit the floor. --squash scales with the impact speed. */
+@keyframes pet-land {
+  0%   { transform: scale(calc(1 + var(--squash, .15)), calc(1 - var(--squash, .15))); }
+  55%  { transform: scale(calc(1 - var(--squash, .15) * .4), calc(1 + var(--squash, .15) * .4)); }
+  100% { transform: scale(1, 1); }
+}
+
+.pet-canvas.landing { animation: pet-land 260ms cubic-bezier(.22, .61, .36, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-canvas.landing { animation: none; }
+}
+
 /* ---- Wardrobe dock ------------------------------------------------------ */
 /* Moved into the selected pet's container, so the buttons and panels always
    appear next to the pet you're dressing — on whichever monitor it's on. */
-/* Absolutely positioned inside the pet's box so it can hang below the pet (or
-   flip above / to the left near a screen edge) without ever shifting the
-   sprite itself off its recorded position. */
+/* Absolutely positioned inside the pet's box so it can hang below the pet
+   without ever shifting the sprite itself off its recorded position. The exact
+   offsets are written by placeDock() in pet_desktop.js, which solves for a
+   rectangle that is fully on screen — CSS anchors alone can't do that, because
+   the dress-up panel is far bigger than the pet it hangs off. */
 #wardrobe-dock {
   position: absolute;
-  top: 100%;
+  top: 0;
   left: 0;
   display: none;              /* revealed once a pet is on screen */
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
-  margin-top: 4px;
 }
 
 #dock-bar {
@@ -90,7 +107,9 @@ html, body {
   top: auto !important;
   bottom: auto !important;
   width: 340px !important;
-  max-height: 420px;
+  /* Never taller than the screen minus the button bar and its margins, so the
+     whole dock can always be placed fully on screen. */
+  max-height: min(420px, calc(100vh - 90px));
   overflow: auto;
   padding: 10px;
   border-radius: 12px;
@@ -102,19 +121,9 @@ html, body {
 
 #preset-panel { width: 260px !important; }
 
-/* The panels are taller than the pet, so near a screen edge the renderer flips
-   the dock above the pet and/or anchors it to the pet's right side, keeping
-   the whole wardrobe on screen wherever you park the pet. */
+/* The panels are taller than the pet — and pets now sit on the floor, so the
+   dock is above them most of the time. When it is, reverse the column so the
+   button bar is still the part nearest the pet. */
 #wardrobe-dock.flip-up {
-  top: auto;
-  bottom: 100%;
-  margin-top: 0;
-  margin-bottom: 4px;
-  flex-direction: column-reverse;   /* keep the button bar nearest the pet */
-}
-
-#wardrobe-dock.flip-left {
-  left: auto;
-  right: 0;
-  align-items: flex-end;
+  flex-direction: column-reverse;
 }

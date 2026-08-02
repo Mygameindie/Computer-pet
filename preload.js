@@ -13,6 +13,15 @@ contextBridge.exposeInMainWorld('petAPI', {
   // Pet position in GLOBAL screen coordinates, so it can cross monitors.
   movePet: (index, x, y) => ipcRenderer.send('move-pet', { index, x, y }),
 
+  // Gravity: main owns the simulation, the renderer only reports what the user
+  // did with the cursor. grab = physics off for this pet, drop = let go with a
+  // flick velocity in px/second.
+  grabPet: (index) => ipcRenderer.send('grab-pet', index),
+  dropPet: (index, vx, vy) => ipcRenderer.send('drop-pet', { index, vx, vy }),
+
+  // The drawn size of the sprite, which is what decides where the floor is.
+  reportPetSize: (index, w, h) => ipcRenderer.send('pet-size', { index, w, h }),
+
   // Outfit / active-pet / panel state, merged in main and mirrored to every window.
   patchState: (patch) => ipcRenderer.send('patch-state', patch),
 

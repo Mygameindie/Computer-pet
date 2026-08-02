@@ -13,6 +13,10 @@
 // — so the desktop, icons and browser underneath stay fully clickable. The
 // renderer flips it off only while the cursor is over an opaque pet pixel or
 // over the wardrobe UI. See pet_desktop.js.
+//
+// Gravity lives here too, not in the renderer: the main process owns the pet
+// positions, so it is the only place that can integrate them once and have
+// every monitor's overlay agree on where the pet is.
 // ===========================================================
 
 const { app, BrowserWindow, ipcMain, screen, Menu, Tray, nativeImage, protocol, net } = require('electron');
@@ -22,6 +26,13 @@ const { pathToFileURL } = require('url');
 
 const APP_DIR = __dirname;
 const PET_COUNT = 2;
+
+// Only one pet app at a time. The launcher now starts the app detached, so it
+// keeps running after its window is closed — which means it is easy to
+// double-click the launcher again and end up with two sets of pets on screen.
+// The second instance just un-hides the pets of the first one and exits.
+const HAS_INSTANCE_LOCK = app.requestSingleInstanceLock();
+if (!HAS_INSTANCE_LOCK) app.quit();
 
 // Custom scheme instead of file:// — a file:// page can't read pixels back out
 // of a canvas that has a file:// image drawn on it (Chromium taints it), and
@@ -35,18 +46,26 @@ protocol.registerSchemesAsPrivileged([
 const windows = new Map();
 let tray = null;
 let quitting = false;
+let droppedIn = false;   // have the pets made their entrance yet?
 
 // ---- Shared state --------------------------------------------------------
 // Pet x/y are GLOBAL screen coordinates (top-left of the pet box), so they are
 // meaningful across every monitor. Each window subtracts its display origin.
+// vx/vy are px per second and are integrated by the physics loop below; w/h
+// start as a guess and are replaced by the real drawn size the first time a
+// renderer measures its sprite (see the 'pet-size' IPC).
 const state = {
   pets: [
-    { x: 0, y: 0, visible: true },
-    { x: 0, y: 0, visible: true },
+    { x: 0, y: 0, vx: 0, vy: 0, w: 220, h: 250, visible: true, dragging: false, landedAt: 0, impact: 0 },
+    { x: 0, y: 0, vx: 0, vy: 0, w: 220, h: 250, visible: true, dragging: false, landedAt: 0, impact: 0 },
   ],
   activePet: 0,
+  gravity: true,
   // Filled in by the renderer once the outfit system has built its defaults.
+  // outfitRev is bumped on every change so a renderer can tell "the wardrobe
+  // changed" from "this is just another physics frame" without diffing.
   outfit: null,
+  outfitRev: 0,
   ui: { dressupOpen: false, presetsOpen: false },
 };
 
@@ -60,12 +79,28 @@ function displayArea() {
   return { left, top, right, bottom };
 }
 
+// The display a pet is standing on, picked from its centre so a pet straddling
+// two monitors belongs to the one it is mostly on.
+function displayFor(pet) {
+  return screen.getDisplayNearestPoint({
+    x: Math.round(pet.x + pet.w / 2),
+    y: Math.round(pet.y + pet.h / 2),
+  });
+}
+
+// The floor: the bottom of the work area, so the pet stands ON the taskbar/dock
+// rather than behind it. Returned as the pet's top-left y when it is grounded.
+function groundY(pet) {
+  const wa = displayFor(pet).workArea;
+  return wa.y + wa.height - pet.h;
+}
+
 function defaultPetPosition(index) {
   const d = screen.getPrimaryDisplay().workArea;
-  const w = 220, h = 290;
+  const pet = state.pets[index] || { w: 220 };
   return {
-    x: Math.round(d.x + d.width - (w + 30) * (index + 1)),
-    y: Math.round(d.y + d.height - h - 20),
+    x: Math.round(d.x + d.width - (pet.w + 30) * (index + 1)),
+    y: Math.round(d.y + 40),   // drop in from the top — gravity does the rest
   };
 }
 
@@ -73,16 +108,133 @@ function resetPositions() {
   state.pets.forEach((p, i) => {
     const { x, y } = defaultPetPosition(i);
     p.x = x; p.y = y;
+    p.vx = 0; p.vy = 0;
   });
+  clampAll();
+  wakePhysics();
   broadcast();
 }
 
-// Keep a dragged pet somewhere reachable: its centre must stay on a real
-// display, otherwise it could be parked in the gap between two monitors.
+// Keep a pet reachable: fully inside the union of the displays, and never below
+// the floor of whichever display it is on.
 function clampPet(pet) {
   const a = displayArea();
-  pet.x = Math.max(a.left - 60, Math.min(pet.x, a.right - 60));
-  pet.y = Math.max(a.top - 20, Math.min(pet.y, a.bottom - 60));
+  pet.x = Math.max(a.left, Math.min(pet.x, a.right - pet.w));
+  pet.y = Math.max(a.top, Math.min(pet.y, groundY(pet)));
+}
+
+function clampAll() {
+  state.pets.forEach(clampPet);
+}
+
+// ---- Gravity -------------------------------------------------------------
+// A tiny fixed-step simulation. It only runs while something is actually
+// moving: once every pet is asleep on the floor the timer stops, so an idle
+// pet costs exactly nothing.
+const GRAVITY = 2600;        // px/s² — a screen-height fall takes about half a second
+const BOUNCE = 0.34;         // share of downward speed kept when it hits the floor
+const BOUNCE_CUTOFF = 240;   // px/s — land slower than this and it just stops
+const WALL_BOUNCE = 0.45;    // same, for the left/right edges of the desktop
+const GROUND_FRICTION = 5.5; // e-folds per second while sliding along the floor
+const AIR_DRAG = 0.35;       // ditto, in the air — a throw keeps most of its speed
+const STOP_SPEED = 20;       // px/s — slower than this on the floor is "stopped"
+const MAX_THROW = 3200;      // px/s — cap on how hard a flick can launch a pet
+const MAX_STEP = 0.05;       // never integrate more than 50 ms in one go
+const TICK_MS = 16;
+
+let physicsTimer = null;
+let lastTick = 0;
+
+function wakePhysics() {
+  if (physicsTimer || !state.gravity) return;
+  lastTick = Date.now();
+  physicsTimer = setInterval(stepPhysics, TICK_MS);
+}
+
+function sleepPhysics() {
+  if (!physicsTimer) return;
+  clearInterval(physicsTimer);
+  physicsTimer = null;
+}
+
+// Gravity off = the pet floats wherever you put it, which is the old behaviour
+// and is genuinely handy if you like it parked halfway up the screen.
+function setGravity(on) {
+  state.gravity = !!on;
+  if (!state.gravity) {
+    sleepPhysics();
+    state.pets.forEach(p => { p.vx = 0; p.vy = 0; });
+  } else {
+    wakePhysics();
+  }
+  broadcast();
+}
+
+// Exponential damping that doesn't change character with the frame rate.
+function damp(v, rate, dt) {
+  return v * Math.exp(-rate * dt);
+}
+
+function stepPhysics() {
+  const now = Date.now();
+  const dt = Math.min((now - lastTick) / 1000, MAX_STEP);
+  lastTick = now;
+  if (dt <= 0) return;
+
+  const area = displayArea();
+  let moved = false;
+  let busy = false;
+
+  for (const pet of state.pets) {
+    // A pet held by the cursor hangs in the air; it falls when you let go.
+    if (!pet.visible || pet.dragging) continue;
+
+    const floor = groundY(pet);
+    const airborne = pet.y < floor - 0.5;
+    if (!airborne && pet.vx === 0 && pet.vy === 0) continue;   // asleep
+
+    if (airborne) pet.vy += GRAVITY * dt;
+
+    pet.x += pet.vx * dt;
+    pet.y += pet.vy * dt;
+
+    // Side walls of the whole desktop, so a thrown pet bounces back into view.
+    const minX = area.left;
+    const maxX = area.right - pet.w;
+    if (pet.x < minX) { pet.x = minX; pet.vx = Math.abs(pet.vx) * WALL_BOUNCE; }
+    else if (pet.x > maxX) { pet.x = maxX; pet.vx = -Math.abs(pet.vx) * WALL_BOUNCE; }
+
+    // Recompute the floor: a sideways bounce may have moved it to another
+    // monitor whose work area ends somewhere else.
+    const landing = groundY(pet);
+    if (pet.y >= landing) {
+      const hit = pet.vy;
+      pet.y = landing;
+      if (hit > BOUNCE_CUTOFF) {
+        pet.vy = -hit * BOUNCE;
+      } else if (hit > 0) {
+        pet.vy = 0;
+      }
+      if (hit > BOUNCE_CUTOFF / 2) {
+        // Tell the renderers to squash the sprite; strength scales with impact.
+        pet.landedAt = now;
+        pet.impact = Math.min(1, hit / 1800);
+      }
+      pet.vx = damp(pet.vx, GROUND_FRICTION, dt);
+      if (Math.abs(pet.vx) < STOP_SPEED) pet.vx = 0;
+      if (Math.abs(pet.vy) < STOP_SPEED) pet.vy = 0;
+    } else {
+      pet.vx = damp(pet.vx, AIR_DRAG, dt);
+      // Don't let a hard upward flick throw the pet off the top of the desktop.
+      if (pet.y < area.top) { pet.y = area.top; if (pet.vy < 0) pet.vy = 0; }
+    }
+
+    moved = true;
+    if (pet.y < groundY(pet) - 0.5 || pet.vx !== 0 || pet.vy !== 0) busy = true;
+  }
+
+  if (moved) broadcast();
+  if (!busy) sleepPhysics();
 }
 
 function broadcast() {
@@ -137,10 +289,19 @@ function createWindowForDisplay(display) {
 
   win.once('ready-to-show', () => {
     win.showInactive(); // never steal focus from what the user is working in
+    // Drop the pets in only once there is something to watch them fall onto;
+    // starting the fall before the first overlay is visible would just mean
+    // finding them already sitting on the floor.
+    if (!droppedIn) { droppedIn = true; resetPositions(); }
     win.webContents.send('state', state);
   });
 
-  win.on('closed', () => windows.delete(display.id));
+  win.on('closed', () => {
+    windows.delete(display.id);
+    // The window that was holding a pet is gone; don't leave it stuck mid-air.
+    state.pets.forEach(p => { p.dragging = false; });
+    wakePhysics();
+  });
   windows.set(display.id, win);
   return win;
 }
@@ -171,7 +332,9 @@ function syncWindowsToDisplays() {
     }
   }
 
-  state.pets.forEach(clampPet);
+  // A monitor that appeared, vanished or resized moves the floor: re-settle.
+  clampAll();
+  wakePhysics();
   broadcast();
 }
 
@@ -198,12 +361,18 @@ function buildTrayMenu() {
       checked: pet.visible,
       click: () => {
         pet.visible = !pet.visible;
-        if (pet.visible) clampPet(pet);
+        if (pet.visible) { clampPet(pet); wakePhysics(); }
         tray.setContextMenu(buildTrayMenu());
         broadcast();
       },
     })),
     { type: 'separator' },
+    {
+      label: 'Gravity',
+      type: 'checkbox',
+      checked: state.gravity,
+      click: () => { setGravity(!state.gravity); if (tray) tray.setContextMenu(buildTrayMenu()); },
+    },
     { label: 'Reset Positions', click: resetPositions },
     { type: 'separator' },
     { label: 'Quit', click: () => { quitting = true; app.quit(); } },
@@ -224,7 +393,19 @@ function createTray() {
 }
 
 // ---- App lifecycle -------------------------------------------------------
+// Someone double-clicked the launcher while the pet was already running (very
+// easy now that it survives the launcher window closing): bring the pets back
+// instead of starting a second set.
+app.on('second-instance', () => {
+  state.pets.forEach(p => { p.visible = true; clampPet(p); });
+  if (tray) tray.setContextMenu(buildTrayMenu());
+  wakePhysics();
+  broadcast();
+});
+
 app.whenReady().then(() => {
+  if (!HAS_INSTANCE_LOCK) return;
+
   // Serve the app directory over the privileged `pet:` scheme.
   protocol.handle('pet', (request) => {
     const url = new URL(request.url);
@@ -267,6 +448,28 @@ ipcMain.on('set-ignore-mouse-events', (event, ignore) => {
   if (win && !win.isDestroyed()) win.setIgnoreMouseEvents(!!ignore, { forward: true });
 });
 
+// The renderer measured its sprite. The real drawn size decides where the floor
+// is and how far right a pet may go, so adopt it and re-settle.
+ipcMain.on('pet-size', (event, { index, w, h }) => {
+  const pet = state.pets[index];
+  if (!pet || !(w > 0) || !(h > 0)) return;
+  if (Math.abs(pet.w - w) < 0.5 && Math.abs(pet.h - h) < 0.5) return;
+  pet.w = w;
+  pet.h = h;
+  clampPet(pet);
+  wakePhysics();
+  broadcast();
+});
+
+// Drag started — the pet hangs off the cursor, so physics leaves it alone.
+ipcMain.on('grab-pet', (event, index) => {
+  const pet = state.pets[index];
+  if (!pet) return;
+  pet.dragging = true;
+  pet.vx = 0;
+  pet.vy = 0;
+});
+
 // A renderer moved a pet (global screen coordinates) — clamp and fan out.
 ipcMain.on('move-pet', (event, { index, x, y }) => {
   const pet = state.pets[index];
@@ -277,10 +480,23 @@ ipcMain.on('move-pet', (event, { index, x, y }) => {
   broadcast();
 });
 
+// Let go — hand the flick velocity to the simulation so the pet keeps the
+// momentum of the throw and then falls.
+ipcMain.on('drop-pet', (event, { index, vx, vy }) => {
+  const pet = state.pets[index];
+  if (!pet) return;
+  pet.dragging = false;
+  const clamp = v => Math.max(-MAX_THROW, Math.min(Number(v) || 0, MAX_THROW));
+  pet.vx = state.gravity ? clamp(vx) : 0;
+  pet.vy = state.gravity ? clamp(vy) : 0;
+  wakePhysics();
+  broadcast();
+});
+
 // Outfit / selection / panel state changed in one window — merge and fan out.
 ipcMain.on('patch-state', (event, patch) => {
   if (!patch || typeof patch !== 'object') return;
-  if (patch.outfit) state.outfit = patch.outfit;
+  if (patch.outfit) { state.outfit = patch.outfit; state.outfitRev++; }
   if (typeof patch.activePet === 'number') state.activePet = patch.activePet;
   if (patch.ui) Object.assign(state.ui, patch.ui);
   broadcast();
@@ -305,6 +521,12 @@ ipcMain.on('pet-context-menu', (event, index) => {
     { label: 'Dress Up…', click: () => event.sender.send('command', { name: 'open-dressup', index }) },
     { label: 'Outfits…', click: () => event.sender.send('command', { name: 'open-presets', index }) },
     { type: 'separator' },
+    {
+      label: 'Gravity',
+      type: 'checkbox',
+      checked: state.gravity,
+      click: () => { setGravity(!state.gravity); if (tray) tray.setContextMenu(buildTrayMenu()); },
+    },
     { label: 'Reset Positions', click: resetPositions },
     { label: 'Hide This Pet', click: () => {
       const pet = state.pets[index];

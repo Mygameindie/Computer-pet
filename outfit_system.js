@@ -423,11 +423,22 @@
     }
   }
 
+  function panelOpen() {
+    return panel.style.display !== "none";
+  }
+
+  // Rebuilding the panel is only worth doing when it is on screen. The desktop
+  // shell re-syncs shared state on every physics frame while a pet is falling,
+  // and re-rendering a hidden panel that often used to throw away in-flight
+  // clicks and reset the scroll position for no reason at all.
   function renderPanel() {
+    if (!panelOpen()) return;
+
     const p = activePet();
     const catalog = window.dressUpCatalog[p] || window.dressUpCatalog[0] || {};
     const keys = catKeys(p);
     if (!keys.includes(selectedCategory)) selectedCategory = keys[0] || (cats[0] && cats[0].key);
+    const scroll = panel.scrollTop;   // keep the reader's place across rebuilds
     panel.innerHTML = "";
 
     // Title + close
@@ -436,7 +447,7 @@
     title.innerHTML = `<span>Dress Up</span>`;
     const close = btn("✕");
     close.style.padding = "4px 8px";
-    close.onclick = () => { panel.style.display = "none"; };
+    close.onclick = () => { showPanel(false); };
     title.appendChild(close);
     panel.appendChild(title);
 
@@ -451,9 +462,11 @@
     });
     panel.appendChild(petRow);
 
-    // Category tabs
+    // Category tabs. They wrap instead of scrolling sideways: a horizontal
+    // scroller is close to unusable with a mouse, and on the desktop overlay
+    // there is no touch to swipe it with.
     const row = document.createElement("div");
-    row.style.cssText = "display:flex;overflow-x:auto;padding-bottom:4px;margin-bottom:8px;";
+    row.style.cssText = "display:flex;flex-wrap:wrap;padding-bottom:4px;margin-bottom:8px;";
     keys.forEach(k => {
       const b = btn(catalog[k].label || k);
       if (k === selectedCategory) b.style.cssText += "background:rgba(0,0,0,.22);font-weight:700;";
@@ -463,7 +476,19 @@
     panel.appendChild(row);
 
     const cat = catalog[selectedCategory];
-    if (!cat) return;
+    if (!keys.length || !cat) {
+      // No wardrobe for this character — say so instead of showing an empty
+      // box that looks like the panel is broken.
+      const empty = document.createElement("div");
+      empty.style.cssText = "padding:14px 4px;font-size:12px;line-height:1.5;opacity:.75;";
+      empty.textContent =
+        `No clothes found for Character ${p + 1}. Drop the PNGs into images/ and ` +
+        `list their names in outfit_config.js — they show up here automatically.`;
+      panel.appendChild(empty);
+      panel.scrollTop = scroll;
+      updateButtonLabel();
+      return;
+    }
 
     // Items as thumbnails
     const itemTitle = document.createElement("div");
@@ -508,13 +533,25 @@
     note.textContent = "Tip: add new clothes in outfit_config.js — drop the image in images/ and add its name to the list.";
     note.style.cssText = "font-size:11px;opacity:.6;margin-top:8px;";
     panel.appendChild(note);
+    panel.scrollTop = scroll;
     updateButtonLabel();
   }
 
-  dressBtn.onclick = () => {
-    panel.style.display = panel.style.display === "none" ? "block" : "none";
-    renderPanel();
-  };
+  // Open/close in one place so the panel is always rendered when it becomes
+  // visible — renderPanel() deliberately does nothing while it is hidden.
+  function showPanel(open) {
+    panel.style.display = open ? "block" : "none";
+    if (open) {
+      // The two panels share the same slot under the pet; only one at a time.
+      const presets = document.getElementById("preset-panel");
+      if (presets) presets.style.display = "none";
+      renderPanel();
+    } else {
+      updateButtonLabel();
+    }
+  }
+
+  dressBtn.onclick = () => { showPanel(!panelOpen()); };
 
   // ---- Public draw + lifecycle API (used by every mode) ---------------------
   // Lets other systems (e.g. outfit_presets.js) refresh the Dress Up panel and

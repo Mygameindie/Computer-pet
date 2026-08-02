@@ -5,6 +5,10 @@ title Desktop Pet
 REM One-click launcher for Windows. Double-click this file to start the pet.
 REM On the very first run it installs dependencies (downloads Electron);
 REM after that it just launches.
+REM
+REM The pet is started DETACHED: this window is only the installer/launcher, so
+REM closing it (or letting it close itself) does not stop the pet. Quit the pet
+REM from the tray icon by the clock, or by right-clicking the pet itself.
 
 cd /d "%~dp0"
 
@@ -23,7 +27,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if not exist "node_modules\" (
+if not exist "node_modules\electron\dist\electron.exe" (
   echo.
   echo   First run - installing dependencies.
   echo   This downloads Electron ^(about 200 MB^) and takes a few minutes.
@@ -39,19 +43,40 @@ if not exist "node_modules\" (
   )
 )
 
-echo.
-echo   Starting Desktop Pet...
-echo   The pets appear at the bottom-right of your main screen.
-echo   To quit: right-click a pet, or use the tray icon by the clock.
-echo.
+REM Ask the electron package where its executable is, and fall back to the
+REM standard location if that lookup fails for any reason.
+set "ELECTRON="
+for /f "usebackq delims=" %%i in (`node -e "try{process.stdout.write(require('electron'))}catch(e){}"`) do set "ELECTRON=%%i"
+if not defined ELECTRON set "ELECTRON=%~dp0node_modules\electron\dist\electron.exe"
 
-call npm start
-
-if errorlevel 1 (
+if not exist "%ELECTRON%" (
   echo.
-  echo   The app exited with an error. The message above should say why.
+  echo   Could not find Electron inside node_modules.
+  echo   Delete the node_modules folder and double-click this file again.
   echo.
   pause
+  exit /b 1
 )
 
+echo.
+echo   Starting Desktop Pet...
+echo   The pets drop in from the top of your main screen and land on the floor.
+echo.
+echo   You can close this window - the pet keeps running.
+echo   To quit it: right-click a pet, or use the tray icon by the clock.
+echo.
+
+REM `start` launches Electron as its own independent process rather than as a
+REM child of this console. That is what lets the pet outlive this window:
+REM running `npm start` here instead ties the app to the console, so closing
+REM the window takes the whole process tree - pet included - down with it.
+REM Running this file again while the pet is already up does nothing harmful;
+REM main.js holds a single-instance lock and just brings the pets back.
+start "" "%ELECTRON%" .
+
+REM Stay open just long enough that an instant crash is still readable here,
+REM then get out of the way and close.
+timeout /t 3 /nobreak >nul
+
 endlocal
+exit /b 0

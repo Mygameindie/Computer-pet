@@ -38,10 +38,14 @@
   let shared = {
     pets: [{ x: 0, y: 0, visible: true }, { x: 0, y: 0, visible: true }],
     activePet: 0,
+    gravity: true,
     outfit: null,
+    outfitRev: 0,
     ui: { dressupOpen: false, presetsOpen: false },
   };
   let applyingRemote = false;   // guards against echoing state back to main
+  let seenOutfitRev = -1;       // last outfit revision this window has applied
+  let seenLanding = [0, 0];     // last landing timestamp per pet, for the squash
 
   // ---- DOM ---------------------------------------------------------------
   const dock = document.getElementById('wardrobe-dock');
@@ -104,6 +108,10 @@
     pet.canvas.style.width = pet.w + 'px';
     pet.canvas.style.height = pet.h + 'px';
     pet.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // The main process needs the real drawn size: it is what decides where the
+    // floor is and how far right the pet may travel.
+    if (api && typeof api.reportPetSize === 'function') api.reportPetSize(pet.index, pet.w, pet.h);
   }
 
   pets.forEach(pet => { sizePet(pet); loadBase(pet); });
@@ -152,25 +160,43 @@
   }
 
   // The dock lives inside the selected pet's container so it travels with it.
+  // Its offsets are set in pixels rather than by CSS anchors: the dress-up
+  // panel is much bigger than the pet, and "flip to the other side" isn't
+  // enough to keep it on screen when the pet is parked in a corner or sitting
+  // on the floor. Solving for an on-screen rectangle handles every case.
+  const DOCK_MARGIN = 8;   // never come closer than this to a screen edge
+  const DOCK_GAP = 4;      // breathing room between the pet and the dock
+
   function placeDock() {
     const active = pets[shared.activePet] || pets[0];
-    const visible = shared.pets[active.index] && shared.pets[active.index].visible;
-    if (!visible) { dock.style.display = 'none'; return; }
+    const s = shared.pets[active.index];
+    if (!s || !s.visible) { dock.style.display = 'none'; return; }
     if (dock.parentElement !== active.el) active.el.appendChild(dock);
     dock.style.display = 'flex';
 
-    // Keep the wardrobe on screen wherever the pet is parked — measure the dock
-    // rather than guessing, since its height depends on which panel is open.
-    const petTop = shared.pets[active.index].y - origin.y;
-    const petLeft = shared.pets[active.index].x - origin.x;
+    // Measure rather than guess: the dock's size depends on which panel is open.
+    const petTop = s.y - origin.y;
+    const petLeft = s.x - origin.x;
     const dockH = dock.offsetHeight || 44;
     const dockW = dock.offsetWidth || 200;
 
-    const spaceBelow = origin.h - (petTop + active.h);
-    dock.classList.toggle('flip-up', spaceBelow < dockH + 8 && petTop > dockH + 8);
+    // Hang below the pet; flip above it when there isn't room down there. The
+    // class only reverses the flex order so the button bar stays next to the
+    // pet — the actual position comes from the offsets below.
+    let top = petTop + active.h + DOCK_GAP;
+    const flipUp = (top + dockH > origin.h - DOCK_MARGIN) &&
+                   (petTop - dockH - DOCK_GAP > DOCK_MARGIN);
+    if (flipUp) top = petTop - dockH - DOCK_GAP;
+    dock.classList.toggle('flip-up', flipUp);
 
-    const spaceRight = origin.w - petLeft;
-    dock.classList.toggle('flip-left', spaceRight < dockW + 8 && petLeft + active.w > dockW + 8);
+    // Final safety net: clamp into the window whatever the pet is doing. Since
+    // pets now fall to the bottom of the screen, "below the pet" is off-screen
+    // most of the time, and this is what keeps the panel usable there.
+    top = Math.max(DOCK_MARGIN, Math.min(top, origin.h - DOCK_MARGIN - dockH));
+    const left = Math.max(DOCK_MARGIN, Math.min(petLeft, origin.w - DOCK_MARGIN - dockW));
+
+    dock.style.top = (top - petTop) + 'px';
+    dock.style.left = (left - petLeft) + 'px';
   }
 
   // ---- Click-through ------------------------------------------------------
@@ -184,7 +210,15 @@
     api.setIgnoreMouseEvents(next);
   }
 
-  function opaqueAt(pet, cx, cy) {
+  // cx/cy are relative to the canvas's on-screen rectangle. That rectangle is
+  // not always the sprite's natural size — the landing squash animates a
+  // transform on the canvas — so map through the measured rect instead of
+  // assuming 1:1, or the pet becomes ungrabbable for the length of the bounce.
+  function opaqueAt(pet, cx, cy, rect) {
+    const rw = (rect && rect.width) || pet.w;
+    const rh = (rect && rect.height) || pet.h;
+    cx = cx * (pet.w / rw);
+    cy = cy * (pet.h / rh);
     if (cx < 0 || cy < 0 || cx >= pet.w || cy >= pet.h) return false;
     const dpr = window.devicePixelRatio || 1;
     try {
@@ -207,7 +241,7 @@
       if (!s || !s.visible) continue;
       const r = pet.canvas.getBoundingClientRect();
       if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) continue;
-      if (opaqueAt(pet, clientX - r.left, clientY - r.top)) return pet;
+      if (opaqueAt(pet, clientX - r.left, clientY - r.top, r)) return pet;
     }
     return null;
   }
@@ -230,14 +264,31 @@
   // ---- Dragging -----------------------------------------------------------
   // Offsets are kept in global screen coordinates so a drag that starts on one
   // monitor keeps working after the cursor crosses onto another.
-  const drag = { active: false, index: -1, dx: 0, dy: 0, pointerId: null };
+  const drag = { active: false, index: -1, dx: 0, dy: 0, pointerId: null, trail: [] };
+
+  const THROW_WINDOW = 120;   // ms of pointer history a flick is measured over
 
   function globalFromClient(clientX, clientY) {
     return { x: clientX + origin.x, y: clientY + origin.y };
   }
 
+  // Speed of the cursor over the last few frames, in px/second. That is the
+  // velocity the pet keeps when you let go, so a flick actually throws it.
+  function throwVelocity() {
+    const trail = drag.trail;
+    const last = trail[trail.length - 1];
+    if (!last) return { vx: 0, vy: 0 };
+    const first = trail.find(p => last.t - p.t <= THROW_WINDOW) || trail[0];
+    const dt = (last.t - first.t) / 1000;
+    if (dt < 0.008) return { vx: 0, vy: 0 };   // too short to be meaningful
+    return { vx: (last.x - first.x) / dt, vy: (last.y - first.y) / dt };
+  }
+
   document.addEventListener('pointerdown', (e) => {
     if (e.button === 2) return;                    // right-click opens the menu
+    // The wardrobe sits inside the pet's own container and can overlap the
+    // other pet's sprite. Clicks there belong to the panel, never to a drag.
+    if (overDock(e.clientX, e.clientY)) return;
     const pet = petUnderCursor(e.clientX, e.clientY);
     if (!pet) return;
 
@@ -250,8 +301,10 @@
     drag.dx = g.x - s.x;
     drag.dy = g.y - s.y;
     drag.pointerId = e.pointerId;
+    drag.trail = [{ t: e.timeStamp, x: s.x, y: s.y }];
 
     pet.el.classList.add('dragging');
+    api.grabPet(pet.index);        // physics lets go while the cursor holds it
     // Pointer capture keeps move/up events coming to this window even after the
     // cursor leaves it — that's what allows dragging onto another display.
     try { pet.canvas.setPointerCapture(e.pointerId); } catch (_) {}
@@ -268,6 +321,8 @@
     // clamps and mirrors the position to the other windows.
     shared.pets[drag.index].x = x;
     shared.pets[drag.index].y = y;
+    drag.trail.push({ t: e.timeStamp, x, y });
+    while (drag.trail.length > 2 && e.timeStamp - drag.trail[0].t > THROW_WINDOW) drag.trail.shift();
     layout();
     api.movePet(drag.index, x, y);
     e.preventDefault();
@@ -280,9 +335,14 @@
       pet.el.classList.remove('dragging');
       try { if (e && drag.pointerId !== null) pet.canvas.releasePointerCapture(drag.pointerId); } catch (_) {}
     }
+    // Hand the flick over to gravity: the pet keeps the momentum of the throw
+    // and falls from wherever it was released.
+    const { vx, vy } = throwVelocity();
+    api.dropPet(drag.index, vx, vy);
     drag.active = false;
     drag.index = -1;
     drag.pointerId = null;
+    drag.trail = [];
   }
   document.addEventListener('pointerup', endDrag);
   document.addEventListener('pointercancel', endDrag);
@@ -358,24 +418,66 @@
     layout();
   });
 
+  // State arrives on every physics frame while a pet is falling, so this path
+  // has to be cheap AND must not touch the wardrobe DOM unless something the
+  // wardrobe cares about actually changed — rebuilding the Dress Up panel 60
+  // times a second made it flicker and swallowed clicks.
   api.onState((s) => {
-    const outfitChanged = s.outfit && JSON.stringify(s.outfit) !== JSON.stringify(currentOutfit());
+    const prev = shared;
     shared = s;
 
     applyingRemote = true;
     try {
-      if (typeof window.setActivePet === 'function') window.setActivePet(s.activePet);
+      if (s.activePet !== prev.activePet) {
+        if (typeof window.setActivePet === 'function') window.setActivePet(s.activePet);
+      }
       if (s.ui) {
-        dressPanel.style.display = s.ui.dressupOpen ? 'block' : 'none';
-        presetPanel.style.display = s.ui.presetsOpen ? 'block' : 'none';
+        setPanel(dressPanel, !!s.ui.dressupOpen, window.refreshDressUpUI);
+        setPanel(presetPanel, !!s.ui.presetsOpen, window.renderPresetPanel);
       }
     } finally {
       applyingRemote = false;
     }
 
-    if (outfitChanged) applyOutfit(s.outfit);
+    // The outfit only changes when someone touches the wardrobe, and main bumps
+    // a revision counter when it does — so the expensive compare is rare.
+    if (s.outfit && s.outfitRev !== seenOutfitRev) {
+      seenOutfitRev = s.outfitRev;
+      if (JSON.stringify(s.outfit) !== JSON.stringify(currentOutfit())) applyOutfit(s.outfit);
+    }
+
+    // Landing squash, driven by the impact main reported.
+    s.pets.forEach((ps, i) => {
+      if (!ps || !pets[i] || !ps.landedAt || ps.landedAt === seenLanding[i]) return;
+      seenLanding[i] = ps.landedAt;
+      if (ps.visible) squash(pets[i], ps.impact || 0);
+    });
+
     layout();
     requestRedraw();
+  });
+
+  // Show or hide a wardrobe panel, re-rendering its contents only on the
+  // transition into "open".
+  function setPanel(panel, open, render) {
+    const isOpen = panel.style.display !== 'none';
+    if (isOpen === open) return;
+    panel.style.display = open ? 'block' : 'none';
+    if (open && typeof render === 'function') render();
+  }
+
+  function squash(pet, impact) {
+    const c = pet.canvas;
+    c.style.setProperty('--squash', (0.08 + 0.16 * Math.max(0, Math.min(1, impact))).toFixed(3));
+    c.classList.remove('landing');
+    void c.offsetWidth;          // restart the animation from the top
+    c.classList.add('landing');
+  }
+
+  // Drop the class as soon as the bounce is over, so the canvas goes back to
+  // its untransformed size and nothing has to compensate for it.
+  pets.forEach(pet => {
+    pet.canvas.addEventListener('animationend', () => pet.canvas.classList.remove('landing'));
   });
 
   api.onCommand((cmd) => {
@@ -383,10 +485,8 @@
     if (cmd.name === 'open-dressup' || cmd.name === 'open-presets') {
       selectPet(cmd.index);
       const wantDress = cmd.name === 'open-dressup';
-      dressPanel.style.display = wantDress ? 'block' : 'none';
-      presetPanel.style.display = wantDress ? 'none' : 'block';
-      if (wantDress && typeof window.refreshDressUpUI === 'function') window.refreshDressUpUI();
-      if (!wantDress && typeof window.renderPresetPanel === 'function') window.renderPresetPanel();
+      setPanel(dressPanel, wantDress, window.refreshDressUpUI);
+      setPanel(presetPanel, !wantDress, window.renderPresetPanel);
       placeDock();
       pushOutfit();
     }

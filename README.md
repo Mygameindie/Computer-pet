@@ -12,6 +12,11 @@ Built on Electron, so the same code runs on **Windows** and **macOS**.
 
 - **Drag the pet anywhere.** The overlay covers the entire screen, so the pet can
   be parked in any corner — over the desktop, over a browser, over the taskbar.
+- **Gravity.** Let go of a pet and it falls, squashes as it lands, and settles on
+  the floor — the bottom of the work area, so it stands *on* the taskbar rather
+  than behind it. Flick it and it keeps the momentum of the throw, bounces off
+  the sides of the desktop and slides to a stop. Turn it off from the tray or the
+  pet's right-click menu if you'd rather park a pet in mid-air.
 - **Doesn't block anything.** The window is click-through everywhere except the
   pet itself. Desktop shortcuts, links, buttons and browser windows underneath
   stay fully clickable, even directly around the pet — hit-testing is done per
@@ -33,11 +38,25 @@ first run (a few minutes, it's fetching Electron) and launches the pet after
 that. It needs [Node.js](https://nodejs.org) installed first; if it isn't, the
 launcher tells you the one command to fix that.
 
+The launcher window is *only* a launcher: it starts the pet as its own detached
+process and then closes itself after a few seconds. **Closing that window does
+not close the pet** — quit the pet from the tray icon by the clock, or by
+right-clicking the pet. Double-clicking the launcher again while the pet is
+already running won't give you a second set of pets either; the app holds a
+single-instance lock and just brings the existing ones back.
+
 **Any platform** — from a terminal in this folder:
 
 ```bash
 npm install
 npm start
+```
+
+`npm start` keeps the pet tied to that terminal. To have it survive the terminal
+closing on macOS or Linux, detach it:
+
+```bash
+nohup npm start >/dev/null 2>&1 &
 ```
 
 ## Building installers
@@ -62,14 +81,17 @@ Windows or vice versa.
 | Action | How |
 |---|---|
 | Move a pet | Drag it |
+| Throw a pet | Drag and let go while still moving |
 | Select a pet | Click it — the wardrobe buttons move to it |
 | Change clothes | **👗 Dress Up** under the selected pet |
 | Apply a whole outfit | **🎀 Outfits** |
-| Menu (dress up, hide, reset, quit) | Right-click the pet |
-| Show/hide a pet, reset positions, quit | Tray icon |
+| Menu (dress up, gravity, hide, reset, quit) | Right-click the pet |
+| Show/hide a pet, gravity, reset positions, quit | Tray icon |
 
-The wardrobe buttons sit under the selected pet and flip above or beside it
-automatically when the pet is near a screen edge.
+The wardrobe buttons ride along with the selected pet. Since pets sit on the
+floor, the panel normally opens *above* them; wherever the pet ends up, the
+whole panel is kept on screen. Only one of the two panels is open at a time —
+they share the same slot next to the pet.
 
 ---
 
@@ -112,7 +134,7 @@ a different look (character 1 in a dress, character 2 in top + pants).
 
 | File | Role |
 |---|---|
-| `main.js` | Electron main process: one transparent always-on-top overlay per display, shared pet state in global screen coordinates, tray, click-through toggling |
+| `main.js` | Electron main process: one transparent always-on-top overlay per display, shared pet state in global screen coordinates, the gravity simulation, tray, click-through toggling |
 | `preload.js` | The only bridge between page and main (`contextIsolation` on, `nodeIntegration` off) |
 | `pet_desktop.js` | The overlay scene: draws the pets, alpha hit-testing, dragging, dock placement, state sync |
 | `outfit_system.js` | Dress Up panel, layering, colour tinting, clothing rules |
@@ -120,10 +142,17 @@ a different look (character 1 in a dress, character 2 in top + pants).
 | `outfit_config.js` | The wardrobe — the one file to edit when adding clothes |
 | `asset_path_fix.js` | Resolves bare image names to `images/…` |
 
-Two details worth knowing if you change things:
+Three details worth knowing if you change things:
 
 - **Pet positions are global screen coordinates.** Each overlay subtracts its own
   display origin when drawing, which is what lets a pet cross monitors mid-drag.
+- **Gravity runs in the main process, not the renderer.** Main owns the
+  positions, so it is the only place that can integrate them once and have every
+  monitor agree. The renderer only reports what the cursor did (grab, move,
+  release-with-velocity) and draws the result. The simulation timer stops as soon
+  as every pet is asleep on the floor, so an idle pet costs nothing — and because
+  state is broadcast on every physics frame while a pet is falling, anything
+  listening to it must be cheap and must not rebuild the wardrobe UI.
 - **The app is served over a custom `pet://` scheme, not `file://`.** A `file://`
   page can't read pixels back out of a canvas that has a `file://` image drawn on
   it, and those pixel reads are exactly how click-through decides whether the

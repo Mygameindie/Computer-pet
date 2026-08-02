@@ -240,8 +240,14 @@ window.OUTFIT_PRESETS = [
   }
 
   presetBtn.onclick = () => {
-    panel.style.display = panel.style.display === "none" ? "block" : "none";
-    if (panel.style.display === "block") renderPanel();
+    const opening = panel.style.display === "none";
+    panel.style.display = opening ? "block" : "none";
+    if (opening) {
+      // Both panels hang in the same slot under the pet — show one at a time.
+      const dress = document.getElementById("dressup-panel");
+      if (dress) dress.style.display = "none";
+      renderPanel();
+    }
   };
 
   // Lets the desktop shell open the panel from the tray / right-click menu.
