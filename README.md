@@ -42,9 +42,10 @@ Grab the **whole repository**, not individual files:
 
 Downloading `start-pet.bat` on its own doesn't work: Chrome and Edge block every
 `.bat` download by extension, before looking at what's inside — an empty batch
-file gets refused too. Inside a ZIP it comes through fine. After extracting, if
-Windows tagged the file as coming from the internet, right-click
-`start-pet.bat` → Properties → tick **Unblock**.
+file gets refused too, and `.vbs` gets the same treatment. Inside a ZIP they
+come through fine. After extracting, if Windows tagged the files as coming from
+the internet, right-click `start-pet.bat` and `start-pet-hidden.vbs` →
+Properties → tick **Unblock**.
 
 ### Starting it
 
@@ -53,21 +54,36 @@ first run (a few minutes, it's fetching Electron) and launches the pet after
 that. It needs [Node.js](https://nodejs.org) installed first; if it isn't, the
 launcher tells you the one command to fix that.
 
-The launcher window is *only* a launcher: it starts the pet as a process with no
-console attached to it and then closes itself immediately — after the first run
-it's on screen for well under a second. **Closing that window does not close the
-pet**, and neither does the window closing itself. Quit the pet from the tray
-icon by the clock, or by right-clicking the pet. Double-clicking the launcher
-again while the pet is already running won't give you a second set of pets
-either; the app holds a single-instance lock and just brings the existing ones
-back.
+That first run is the only one with a window worth looking at. After it, the
+batch file hands straight over to `start-pet-hidden.vbs` and quits, so all you
+see is a blink of a console as Windows opens and closes it. **Closing that
+window does not close the pet**, and neither does the window closing itself:
+the pet is started as a process with no console attached to it at all. Quit the
+pet from the tray icon by the clock, or by right-clicking the pet.
+Double-clicking the launcher again while the pet is already running won't give
+you a second set of pets either; the app holds a single-instance lock and just
+brings the existing ones back.
 
 ### Starting it with no window at all
 
-A `.bat` file always flashes a console window — that's `cmd.exe`, not something
-the script can switch off. To avoid it entirely, skip the batch file.
+Not even a blink: **double-click `start-pet-hidden.vbs`** instead of the batch
+file. It's the same launcher with its window hidden, so nothing appears on
+screen — the pet just turns up, with its tray icon by the clock. If something
+goes wrong it says so in a dialog and offers to run the launcher again in a
+visible window, and on a first run (when there are minutes of install output to
+show) it leaves the window visible on purpose.
 
-**The quickest way** — run this once:
+Windows can't hide a `.bat` window itself — `cmd.exe` gets its console from
+Windows before the script runs a single line — which is why the windowless
+launcher is a separate `.vbs` file. Keep the two side by side in this folder;
+each one needs the other.
+
+If `.vbs` files are blocked on your machine (some workplaces switch Windows
+Script Host off by policy), the batch file notices and stays as it is —
+everything still works, you just get the console window back. The options below
+avoid it another way.
+
+**A desktop shortcut** — run this once:
 
 ```powershell
 npm run shortcut
@@ -214,6 +230,8 @@ a different look (character 1 in a dress, character 2 in top + pants).
 | `outfit_presets.js` | Preset outfits and the 🎀 Outfits panel |
 | `outfit_config.js` | The wardrobe — the one file to edit when adding clothes |
 | `asset_path_fix.js` | Resolves bare image names to `images/…` |
+| `start-pet.bat` | Windows one-click launcher: installs on first run, then hands over to the windowless launcher |
+| `start-pet-hidden.vbs` | Runs `start-pet.bat` with its window hidden — double-click this to start the pet with nothing on screen |
 | `scripts/start-detached.js` | `npm run start:bg` — launches the app detached so it outlives the terminal |
 | `scripts/make-shortcut.js` | `npm run shortcut` — a Windows shortcut that starts the pet with no console window |
 
