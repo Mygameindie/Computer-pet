@@ -33,6 +33,21 @@ Built on Electron, so the same code runs on **Windows** and **macOS**.
 
 ## Running it
 
+### Getting the files
+
+Grab the **whole repository**, not individual files:
+
+- **Code → Download ZIP** on GitHub, then extract it, or
+- `git clone https://github.com/Mygameindie/Computer-pet.git`
+
+Downloading `start-pet.bat` on its own doesn't work: Chrome and Edge block every
+`.bat` download by extension, before looking at what's inside — an empty batch
+file gets refused too. Inside a ZIP it comes through fine. After extracting, if
+Windows tagged the file as coming from the internet, right-click
+`start-pet.bat` → Properties → tick **Unblock**.
+
+### Starting it
+
 **Windows** — double-click **`start-pet.bat`**. It installs dependencies on the
 first run (a few minutes, it's fetching Electron) and launches the pet after
 that. It needs [Node.js](https://nodejs.org) installed first; if it isn't, the
