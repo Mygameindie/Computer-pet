@@ -109,10 +109,11 @@ Windows or vice versa.
 | Menu (dress up, gravity, hide, reset, quit) | Right-click the pet |
 | Show/hide a pet, gravity, reset positions, quit | Tray icon |
 
-The wardrobe buttons ride along with the selected pet. Since pets sit on the
-floor, the panel normally opens *above* them; wherever the pet ends up, the
-whole panel is kept on screen. Only one of the two panels is open at a time —
-they share the same slot next to the pet.
+The wardrobe bar is pinned to the top of the screen and the panels drop down
+from it — pets get dragged, thrown and dropped, and a bar that travels with them
+is a moving target. The bar names the pet it is currently dressing (click a pet
+to switch), and on a multi-monitor setup it appears on the screen that pet is
+standing on. Only one of the two panels is open at a time.
 
 ---
 
@@ -157,7 +158,7 @@ a different look (character 1 in a dress, character 2 in top + pants).
 |---|---|
 | `main.js` | Electron main process: one transparent always-on-top overlay per display, shared pet state in global screen coordinates, the gravity simulation, tray, click-through toggling |
 | `preload.js` | The only bridge between page and main (`contextIsolation` on, `nodeIntegration` off) |
-| `pet_desktop.js` | The overlay scene: draws the pets, alpha hit-testing, dragging, dock placement, state sync |
+| `pet_desktop.js` | The overlay scene: draws the pets, alpha hit-testing, dragging and throwing, which screen shows the wardrobe bar, state sync |
 | `outfit_system.js` | Dress Up panel, layering, colour tinting, clothing rules |
 | `outfit_presets.js` | Preset outfits and the 🎀 Outfits panel |
 | `outfit_config.js` | The wardrobe — the one file to edit when adding clothes |

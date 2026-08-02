@@ -21,10 +21,13 @@
   </div>
 
   <!-- Wardrobe dock. outfit_system.js / outfit_presets.js look for these exact
-       ids and adopt them instead of creating their own fixed-position buttons,
-       so the dress-up UI rides along with whichever pet is selected. -->
+       ids and adopt them instead of creating their own fixed-position buttons.
+       The dock is pinned to the top of the screen (see pet_style.css); the
+       label says which pet it is currently dressing, since it no longer sits
+       next to it. -->
   <div id="wardrobe-dock">
     <div id="dock-bar">
+      <span id="dock-who">Pet 1</span>
       <button id="dressup-btn">👗 Dress Up</button>
       <button id="preset-btn">🎀 Outfits</button>
     </div>

@@ -53,6 +53,7 @@
   const presetBtn = document.getElementById('preset-btn');
   const dressPanel = document.getElementById('dressup-panel');
   const presetPanel = document.getElementById('preset-panel');
+  const dockWho = document.getElementById('dock-who');
 
   const pets = [];
   for (let i = 0; i < PET_COUNT; i++) {
@@ -159,44 +160,23 @@
     placeDock();
   }
 
-  // The dock lives inside the selected pet's container so it travels with it.
-  // Its offsets are set in pixels rather than by CSS anchors: the dress-up
-  // panel is much bigger than the pet, and "flip to the other side" isn't
-  // enough to keep it on screen when the pet is parked in a corner or sitting
-  // on the floor. Solving for an on-screen rectangle handles every case.
-  const DOCK_MARGIN = 8;   // never come closer than this to a screen edge
-  const DOCK_GAP = 4;      // breathing room between the pet and the dock
-
+  // The dock is pinned to the top of the screen by CSS, so there is no geometry
+  // to compute here — only the question of WHICH overlay should show it. Every
+  // window runs this same scene, so without that check a two-monitor setup
+  // would sprout a wardrobe bar on each screen. The one that owns the selected
+  // pet gets it.
   function placeDock() {
     const active = pets[shared.activePet] || pets[0];
     const s = shared.pets[active.index];
     if (!s || !s.visible) { dock.style.display = 'none'; return; }
-    if (dock.parentElement !== active.el) active.el.appendChild(dock);
-    dock.style.display = 'flex';
 
-    // Measure rather than guess: the dock's size depends on which panel is open.
-    const petTop = s.y - origin.y;
-    const petLeft = s.x - origin.x;
-    const dockH = dock.offsetHeight || 44;
-    const dockW = dock.offsetWidth || 200;
+    const cx = s.x + active.w / 2 - origin.x;
+    const cy = s.y + active.h / 2 - origin.y;
+    const onThisDisplay = cx >= 0 && cx < origin.w && cy >= 0 && cy < origin.h;
+    dock.style.display = onThisDisplay ? 'flex' : 'none';
 
-    // Hang below the pet; flip above it when there isn't room down there. The
-    // class only reverses the flex order so the button bar stays next to the
-    // pet — the actual position comes from the offsets below.
-    let top = petTop + active.h + DOCK_GAP;
-    const flipUp = (top + dockH > origin.h - DOCK_MARGIN) &&
-                   (petTop - dockH - DOCK_GAP > DOCK_MARGIN);
-    if (flipUp) top = petTop - dockH - DOCK_GAP;
-    dock.classList.toggle('flip-up', flipUp);
-
-    // Final safety net: clamp into the window whatever the pet is doing. Since
-    // pets now fall to the bottom of the screen, "below the pet" is off-screen
-    // most of the time, and this is what keeps the panel usable there.
-    top = Math.max(DOCK_MARGIN, Math.min(top, origin.h - DOCK_MARGIN - dockH));
-    const left = Math.max(DOCK_MARGIN, Math.min(petLeft, origin.w - DOCK_MARGIN - dockW));
-
-    dock.style.top = (top - petTop) + 'px';
-    dock.style.left = (left - petLeft) + 'px';
+    // It is no longer next to the pet it dresses, so name the pet.
+    if (dockWho) dockWho.textContent = `Pet ${active.index + 1}`;
   }
 
   // ---- Click-through ------------------------------------------------------

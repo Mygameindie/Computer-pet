@@ -56,23 +56,36 @@ html, body {
 /* ---- Wardrobe dock ------------------------------------------------------ */
 /* Moved into the selected pet's container, so the buttons and panels always
    appear next to the pet you're dressing — on whichever monitor it's on. */
-/* Absolutely positioned inside the pet's box so it can hang below the pet
-   without ever shifting the sprite itself off its recorded position. The exact
-   offsets are written by placeDock() in pet_desktop.js, which solves for a
-   rectangle that is fully on screen — CSS anchors alone can't do that, because
-   the dress-up panel is far bigger than the pet it hangs off. */
+/* Pinned to the top of the screen rather than to the pet. The pet moves — it
+   gets dragged, thrown and falls — and a wardrobe that rides along with it is
+   a moving target. Fixed to the viewport, it never moves at all, and the
+   panels simply drop down from the bar. pet_desktop.js only decides WHICH
+   overlay shows it: the one whose display the selected pet is standing on. */
 #wardrobe-dock {
-  position: absolute;
-  top: 0;
-  left: 0;
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
   display: none;              /* revealed once a pet is on screen */
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
+  max-height: calc(100vh - 16px);
+}
+
+/* Which pet the wardrobe is currently pointed at. Worth saying out loud now
+   that the bar no longer sits next to the pet it dresses. */
+#dock-who {
+  padding: 0 4px 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.65;
+  white-space: nowrap;
 }
 
 #dock-bar {
   display: flex;
+  align-items: center;
   gap: 6px;
   padding: 5px 6px;
   border-radius: 10px;
@@ -107,9 +120,9 @@ html, body {
   top: auto !important;
   bottom: auto !important;
   width: 340px !important;
-  /* Never taller than the screen minus the button bar and its margins, so the
-     whole dock can always be placed fully on screen. */
-  max-height: min(420px, calc(100vh - 90px));
+  /* The panels hang below the bar at the top of the screen, so they have to
+     fit in what is left underneath it. */
+  max-height: min(420px, calc(100vh - 70px));
   overflow: auto;
   padding: 10px;
   border-radius: 12px;
@@ -120,10 +133,3 @@ html, body {
 }
 
 #preset-panel { width: 260px !important; }
-
-/* The panels are taller than the pet — and pets now sit on the floor, so the
-   dock is above them most of the time. When it is, reverse the column so the
-   button bar is still the part nearest the pet. */
-#wardrobe-dock.flip-up {
-  flex-direction: column-reverse;
-}
