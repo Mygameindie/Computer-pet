@@ -28,6 +28,13 @@ Built on Electron, so the same code runs on **Windows** and **macOS**.
 
 ## Running it
 
+**Windows** — double-click **`start-pet.bat`**. It installs dependencies on the
+first run (a few minutes, it's fetching Electron) and launches the pet after
+that. It needs [Node.js](https://nodejs.org) installed first; if it isn't, the
+launcher tells you the one command to fix that.
+
+**Any platform** — from a terminal in this folder:
+
 ```bash
 npm install
 npm start
