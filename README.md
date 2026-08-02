@@ -64,15 +64,21 @@ single-instance lock and just brings the existing ones back.
 
 ```bash
 npm install
-npm start
+npm run start:bg     # start it and let go of it
 ```
 
-`npm start` keeps the pet tied to that terminal. To have it survive the terminal
-closing on macOS or Linux, detach it:
+`npm run start:bg` starts the pet in its own process with no console attached,
+prints its pid, and exits. **Closing the terminal — PowerShell, Terminal, an SSH
+session — leaves the pet running.** Quit it from the tray icon or the pet's
+right-click menu.
 
 ```bash
-nohup npm start >/dev/null 2>&1 &
+npm start            # stays attached to this terminal
 ```
+
+`npm start` is the one to use while changing the code: the pet dies with the
+terminal, and you get the console output. Closing PowerShell after `npm start`
+takes the pet with it — that's what `start:bg` is for.
 
 ## Building installers
 
@@ -156,6 +162,7 @@ a different look (character 1 in a dress, character 2 in top + pants).
 | `outfit_presets.js` | Preset outfits and the 🎀 Outfits panel |
 | `outfit_config.js` | The wardrobe — the one file to edit when adding clothes |
 | `asset_path_fix.js` | Resolves bare image names to `images/…` |
+| `scripts/start-detached.js` | `npm run start:bg` — launches the app detached so it outlives the terminal |
 
 Three details worth knowing if you change things:
 
