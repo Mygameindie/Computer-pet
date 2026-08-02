@@ -11,8 +11,8 @@
 // any other background app: an icon to click, and a tray icon by the clock to
 // show, hide and quit it.
 //
-// Windows only; on macOS and Linux there is no console window to avoid in the
-// first place (use `npm run start:bg`).
+// This half is Windows; `npm run shortcut` on macOS lands in
+// scripts/make-app.js, which builds the equivalent .app bundle.
 // ===========================================================
 
 const { execFileSync } = require('child_process');
@@ -43,10 +43,16 @@ function buildScript(electronPath, appDir) {
 }
 
 function main() {
+  // `npm run shortcut` is the same promise on every platform — a thing you can
+  // double-click that opens no terminal — so send each one to its own helper.
+  if (process.platform === 'darwin') {
+    require('./make-app.js').makeMacApp();
+    return;
+  }
+
   if (process.platform !== 'win32') {
-    console.log('This is a Windows-only helper — it works around the console');
-    console.log('window that a .bat file always shows.');
-    console.log('On macOS and Linux, use: npm run start:bg');
+    console.log('There is no console window to work around here: on Linux,');
+    console.log('start the pet with `npm run start:bg` and close the terminal.');
     return;
   }
 

@@ -64,7 +64,25 @@ Double-clicking the launcher again while the pet is already running won't give
 you a second set of pets either; the app holds a single-instance lock and just
 brings the existing ones back.
 
+**macOS** — there's no double-clickable file in the box, because the Mac
+equivalent of a `.bat` is a `.command`, and that opens a Terminal window and
+keeps it open. Make a proper app instead — once, in Terminal, in this folder:
+
+```bash
+npm install
+npm run shortcut
+```
+
+That puts a **Desktop Pet.app** on your desktop. Double-click it and the pet
+starts with no Terminal window anywhere; drag it into `/Applications` or keep
+it in the Dock. It points at this folder, so if you move the folder, run
+`npm run shortcut` again. On macOS the pet is menu-bar-only — no Dock icon of
+its own — and the icon by the clock shows, hides and quits it. (It needs
+[Node.js](https://nodejs.org) too: `brew install node`.)
+
 ### Starting it with no window at all
+
+*(Windows. On macOS the app above already opens nothing.)*
 
 Not even a blink: **double-click `start-pet-hidden.vbs`** instead of the batch
 file. It's the same launcher with its window hidden, so nothing appears on
@@ -94,7 +112,8 @@ Electron. Double-click it and the pet starts with no console window at all,
 because Electron is a GUI program and has nothing to flash. Right-click the
 shortcut → *Pin to taskbar* or *Pin to Start* and it behaves like any other
 background app: an icon to click, and a tray icon by the clock to show, hide
-and quit.
+and quit. (The same command on a Mac builds the `.app` described above —
+same promise either way: something to double-click that opens no terminal.)
 
 Or do it the long way:
 
@@ -234,6 +253,7 @@ a different look (character 1 in a dress, character 2 in top + pants).
 | `start-pet-hidden.vbs` | Runs `start-pet.bat` with its window hidden — double-click this to start the pet with nothing on screen |
 | `scripts/start-detached.js` | `npm run start:bg` — launches the app detached so it outlives the terminal |
 | `scripts/make-shortcut.js` | `npm run shortcut` — a Windows shortcut that starts the pet with no console window |
+| `scripts/make-app.js` | the macOS half of `npm run shortcut` — a `Desktop Pet.app` that starts the pet with no Terminal window |
 
 Three details worth knowing if you change things:
 

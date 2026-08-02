@@ -429,6 +429,12 @@ app.on('second-instance', () => {
 app.whenReady().then(() => {
   if (!HAS_INSTANCE_LOCK) return;
 
+  // A background app, not a window you switch to: no Dock icon, no app menu,
+  // no ⌘-Tab entry — just the pets and the menu bar icon. The built .app says
+  // the same thing with LSUIElement; this is what makes running from source
+  // (or from a launcher of your own) behave identically.
+  if (process.platform === 'darwin' && app.dock) app.dock.hide();
+
   // Serve the app directory over the privileged `pet:` scheme.
   protocol.handle('pet', (request) => {
     const url = new URL(request.url);
