@@ -351,9 +351,27 @@ function trayIcon() {
   return nativeImage.createEmpty();
 }
 
+// Show/hide everything at once — what a left-click on the tray icon does, and
+// the reason the app can be left running with nothing on screen at all. When
+// every pet is hidden the wardrobe goes with them, so the tray icon is the way
+// back in; that is deliberate, it's how a background app should behave.
+function toggleAllPets() {
+  const anyHidden = state.pets.some(p => !p.visible);
+  state.pets.forEach(p => {
+    p.visible = anyHidden;
+    if (p.visible) clampPet(p);
+  });
+  if (tray) tray.setContextMenu(buildTrayMenu());
+  wakePhysics();
+  broadcast();
+}
+
 function buildTrayMenu() {
+  const anyHidden = state.pets.some(p => !p.visible);
   return Menu.buildFromTemplate([
     { label: 'Desktop Pet', enabled: false },
+    { type: 'separator' },
+    { label: anyHidden ? 'Show Pets' : 'Hide Pets', click: toggleAllPets },
     { type: 'separator' },
     ...state.pets.map((pet, i) => ({
       label: `Show Pet ${i + 1}`,
@@ -384,8 +402,13 @@ function createTray() {
   // menu still covers everything the tray offers, so don't let this be fatal.
   try {
     tray = new Tray(trayIcon());
-    tray.setToolTip('Desktop Pet');
+    tray.setToolTip('Desktop Pet — click to show or hide the pets');
     tray.setContextMenu(buildTrayMenu());
+    // Left-click brings the pets back (and puts them away again), the way a
+    // background app's tray icon is expected to behave. Right-click still
+    // opens the full menu. On Linux the menu handles both.
+    tray.on('click', toggleAllPets);
+    tray.on('double-click', toggleAllPets);
   } catch (err) {
     console.warn('Tray unavailable:', err.message);
     tray = null;

@@ -65,10 +65,25 @@ back.
 ### Starting it with no window at all
 
 A `.bat` file always flashes a console window — that's `cmd.exe`, not something
-the script can switch off. To avoid it entirely, skip the batch file:
+the script can switch off. To avoid it entirely, skip the batch file.
 
-**Build the app** (best option — you get a real program, a Start Menu entry, and
-something you can pin to the taskbar):
+**The quickest way** — run this once:
+
+```powershell
+npm run shortcut
+```
+
+It puts a **Desktop Pet** shortcut on your desktop pointing straight at
+Electron. Double-click it and the pet starts with no console window at all,
+because Electron is a GUI program and has nothing to flash. Right-click the
+shortcut → *Pin to taskbar* or *Pin to Start* and it behaves like any other
+background app: an icon to click, and a tray icon by the clock to show, hide
+and quit.
+
+Or do it the long way:
+
+**Build the app** (a real installed program with its own icon, rather than a
+shortcut into this folder):
 
 ```powershell
 npm run build:win
@@ -78,7 +93,7 @@ npm run build:win
 anywhere; the installer in the same folder puts it in the Start Menu. Neither
 opens a console window, ever.
 
-**Or make a shortcut** straight to Electron, if you'd rather not build:
+**Or make the shortcut by hand**, if `npm run shortcut` didn't work:
 
 1. Right-click on the desktop → **New → Shortcut**
 2. Location: `C:\path\to\Computer-pet\node_modules\electron\dist\electron.exe .`
@@ -138,7 +153,12 @@ Windows or vice versa.
 | Change clothes | **👗 Dress Up** under the selected pet |
 | Apply a whole outfit | **🎀 Outfits** |
 | Menu (dress up, gravity, hide, reset, quit) | Right-click the pet |
-| Show/hide a pet, gravity, reset positions, quit | Tray icon |
+| Put the pets away / bring them back | **Click the tray icon** by the clock |
+| Show one pet, gravity, reset positions, quit | Right-click the tray icon |
+
+With every pet hidden the app is completely invisible — no pets, no wardrobe,
+nothing in the taskbar — and it carries on running in the background. One click
+on the tray icon brings it all back.
 
 The wardrobe bar is pinned to the top of the screen and the panels drop down
 from it — pets get dragged, thrown and dropped, and a bar that travels with them
@@ -195,6 +215,7 @@ a different look (character 1 in a dress, character 2 in top + pants).
 | `outfit_config.js` | The wardrobe — the one file to edit when adding clothes |
 | `asset_path_fix.js` | Resolves bare image names to `images/…` |
 | `scripts/start-detached.js` | `npm run start:bg` — launches the app detached so it outlives the terminal |
+| `scripts/make-shortcut.js` | `npm run shortcut` — a Windows shortcut that starts the pet with no console window |
 
 Three details worth knowing if you change things:
 

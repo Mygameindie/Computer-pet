@@ -8,6 +8,7 @@
   "scripts": {
     "start": "electron .",
     "start:bg": "node scripts/start-detached.js",
+    "shortcut": "node scripts/make-shortcut.js",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac"
