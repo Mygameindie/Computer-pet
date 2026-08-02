@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <title>Desktop Pet</title>
+  <link rel="stylesheet" href="pet_style.css" />
+</head>
+
+<body>
+  <!-- Both pets live in every overlay window; each window positions them by
+       subtracting its own display origin, so a pet is only visible on the
+       monitor it is actually standing on. -->
+  <div class="pet" id="pet-0" data-index="0">
+    <canvas class="pet-canvas"></canvas>
+  </div>
+  <div class="pet" id="pet-1" data-index="1">
+    <canvas class="pet-canvas"></canvas>
+  </div>
+
+  <!-- Wardrobe dock. outfit_system.js / outfit_presets.js look for these exact
+       ids and adopt them instead of creating their own fixed-position buttons,
+       so the dress-up UI rides along with whichever pet is selected. -->
+  <div id="wardrobe-dock">
+    <div id="dock-bar">
+      <button id="dressup-btn">👗 Dress Up</button>
+      <button id="preset-btn">🎀 Outfits</button>
+    </div>
+    <div id="dressup-panel" style="display:none"></div>
+    <div id="preset-panel" style="display:none"></div>
+  </div>
+
+  <!-- Must load before the outfit system: it rewrites the bare image names used
+       in outfit_config.js ("top1.png") to "images/top1.png". -->
+  <script src="asset_path_fix.js"></script>
+  <script src="outfit_config.js"></script>
+  <script src="outfit_system.js"></script>
+  <script src="outfit_presets.js"></script>
+  <script src="pet_desktop.js"></script>
+</body>
+
+</html>
