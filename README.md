@@ -53,12 +53,43 @@ first run (a few minutes, it's fetching Electron) and launches the pet after
 that. It needs [Node.js](https://nodejs.org) installed first; if it isn't, the
 launcher tells you the one command to fix that.
 
-The launcher window is *only* a launcher: it starts the pet as its own detached
-process and then closes itself after a few seconds. **Closing that window does
-not close the pet** — quit the pet from the tray icon by the clock, or by
-right-clicking the pet. Double-clicking the launcher again while the pet is
-already running won't give you a second set of pets either; the app holds a
-single-instance lock and just brings the existing ones back.
+The launcher window is *only* a launcher: it starts the pet as a process with no
+console attached to it and then closes itself immediately — after the first run
+it's on screen for well under a second. **Closing that window does not close the
+pet**, and neither does the window closing itself. Quit the pet from the tray
+icon by the clock, or by right-clicking the pet. Double-clicking the launcher
+again while the pet is already running won't give you a second set of pets
+either; the app holds a single-instance lock and just brings the existing ones
+back.
+
+### Starting it with no window at all
+
+A `.bat` file always flashes a console window — that's `cmd.exe`, not something
+the script can switch off. To avoid it entirely, skip the batch file:
+
+**Build the app** (best option — you get a real program, a Start Menu entry, and
+something you can pin to the taskbar):
+
+```powershell
+npm run build:win
+```
+
+`dist\Desktop Pet 1.0.0.exe` is a portable build you can double-click or move
+anywhere; the installer in the same folder puts it in the Start Menu. Neither
+opens a console window, ever.
+
+**Or make a shortcut** straight to Electron, if you'd rather not build:
+
+1. Right-click on the desktop → **New → Shortcut**
+2. Location: `C:\path\to\Computer-pet\node_modules\electron\dist\electron.exe .`
+   — note the space and dot at the end, that's the argument telling it which app
+   to run
+3. Name it *Desktop Pet* → Finish
+4. Right-click the new shortcut → **Properties** → set **Start in** to
+   `C:\path\to\Computer-pet`
+
+Double-clicking that launches the pet directly, with no console and no batch
+file in the way.
 
 **Any platform** — from a terminal in this folder:
 

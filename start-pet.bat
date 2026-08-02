@@ -43,40 +43,23 @@ if not exist "node_modules\electron\dist\electron.exe" (
   )
 )
 
-REM Ask the electron package where its executable is, and fall back to the
-REM standard location if that lookup fails for any reason.
-set "ELECTRON="
-for /f "usebackq delims=" %%i in (`node -e "try{process.stdout.write(require('electron'))}catch(e){}"`) do set "ELECTRON=%%i"
-if not defined ELECTRON set "ELECTRON=%~dp0node_modules\electron\dist\electron.exe"
-
-if not exist "%ELECTRON%" (
+REM Hand the app over to the detached launcher, which starts Electron with no
+REM console attached to it at all (DETACHED_PROCESS), then returns immediately.
+REM That is what lets the pet outlive this window: a console being closed
+REM signals every process attached to it, and the pet is not one of them.
+REM
+REM Running this file again while the pet is already up does nothing harmful;
+REM main.js holds a single-instance lock and just brings the pets back.
+node "scripts\start-detached.js"
+if errorlevel 1 (
   echo.
-  echo   Could not find Electron inside node_modules.
-  echo   Delete the node_modules folder and double-click this file again.
+  echo   The pet could not be started. The message above should say why.
   echo.
   pause
   exit /b 1
 )
 
-echo.
-echo   Starting Desktop Pet...
-echo   The pets drop in from the top of your main screen and land on the floor.
-echo.
-echo   You can close this window - the pet keeps running.
-echo   To quit it: right-click a pet, or use the tray icon by the clock.
-echo.
-
-REM `start` launches Electron as its own independent process rather than as a
-REM child of this console. That is what lets the pet outlive this window:
-REM running `npm start` here instead ties the app to the console, so closing
-REM the window takes the whole process tree - pet included - down with it.
-REM Running this file again while the pet is already up does nothing harmful;
-REM main.js holds a single-instance lock and just brings the pets back.
-start "" "%ELECTRON%" .
-
-REM Stay open just long enough that an instant crash is still readable here,
-REM then get out of the way and close.
-timeout /t 3 /nobreak >nul
-
+REM No pause, no countdown: this window has done its job, so it closes at once
+REM and the pet carries on without it.
 endlocal
 exit /b 0
