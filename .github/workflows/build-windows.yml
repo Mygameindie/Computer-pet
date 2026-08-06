@@ -1,0 +1,105 @@
+# ===========================================================
+#  Build the Windows app
+# ===========================================================
+# Produces a real .exe with Electron packaged inside it, so anyone who just
+# wants the pet needs no Node.js, no npm install, and nothing to extract.
+# One file comes out of a run:
+#
+#   DesktopPet-<version>.exe   double-click it, the pet appears
+#
+# Deliberately NOT an installer: nothing installed, nothing in the Start Menu,
+# nothing to uninstall. Keep the file wherever you like, delete it when done.
+#
+# Runs on a push to ANY branch. Each branch keeps its own rolling release named
+# after it (build-<branch>), so branches never overwrite each other's download.
+# Pushing a v* tag - or publishing a release from the website - makes a proper
+# versioned release instead.
+#
+# The .exe is attached to a Release because a Release asset is a direct
+# download; Actions artifacts are always wrapped in a ZIP by GitHub.
+# ===========================================================
+
+name: Build Windows app
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      # --publish never: electron-builder will try to upload to a GitHub release
+      # by itself on a tag build. The release step below does that, so this stops
+      # the two racing each other.
+      - name: Build
+        run: npm run build:win -- --publish never
+
+      - name: Upload the .exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-pet-windows
+          path: dist/*.exe
+          if-no-files-found: error
+
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # @( ) matters: with a single .exe this would otherwise be a plain
+          # string, and passing a string where a list is expected makes
+          # PowerShell enumerate its characters - gh then sees "D" (from
+          # D:\a\...) as an argument and fails with "no matches found".
+          $exes = @(Get-ChildItem -Path dist -Filter *.exe | ForEach-Object { $_.FullName })
+          if ($exes.Count -eq 0) { throw "No .exe was built." }
+          Write-Host "Built: $($exes -join ', ')"
+
+          if ($env:GITHUB_REF -like 'refs/tags/*') {
+            # A version tag gets a permanent release of its own.
+            $tag   = $env:GITHUB_REF_NAME
+            $title = "Desktop Pet $tag"
+            $pre   = $false
+          } else {
+            # A branch gets one rolling release, replaced by each push to it.
+            # Slashes aren't legal in a tag name, hence the substitution.
+            $safe  = $env:GITHUB_REF_NAME -replace '[^A-Za-z0-9._-]', '-'
+            $tag   = "build-$safe"
+            $title = "Latest build ($env:GITHUB_REF_NAME)"
+            $pre   = $true
+          }
+
+          $notes = "Download the .exe below and double-click it. " +
+                   "Node.js is not needed, and it does not install anything."
+
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release '$tag' exists - replacing its .exe."
+            gh release upload $tag $exes --clobber
+          } else {
+            Write-Host "Creating release '$tag'."
+            $ghArgs = @('release', 'create', $tag) + $exes +
+                      @('--target', $env:GITHUB_SHA, '--title', $title, '--notes', $notes)
+            if ($pre) { $ghArgs += '--prerelease' }
+            gh @ghArgs
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Publishing the release failed." }
+
+          Write-Host "Download: https://github.com/$env:GITHUB_REPOSITORY/releases/tag/$tag"

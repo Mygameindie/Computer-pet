@@ -34,13 +34,11 @@
     ],
     "win": {
       "target": [
-        "nsis",
         "portable"
       ]
     },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+    "portable": {
+      "artifactName": "ComputerPet-${version}.exe"
     },
     "mac": {
       "target": [
