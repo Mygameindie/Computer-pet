@@ -38,7 +38,60 @@ Character 2 uses the same names with `_2` on the end — `tail_2.png`,
 Which parts exist, and what each is bound to, is set in `pet_rig_config.js`
 under `backParts` / `frontParts`. Add an entry there to introduce a new one.
 
-## Checking your work
+## How the body moves
+
+The pet is one flat PNG, cut into limbs along the skeleton. What decides whether
+that reads as a person or as a puppet is three things, all of them in
+`pet_rig_config.js`:
+
+**The skin is a grid.** Each limb is drawn through a mesh of quads, and every
+corner of that mesh is carried by more than one bone at once, in proportion to
+how near each bone is. Deep in a forearm that is 100% forearm; over the elbow it
+is half forearm and half upper arm, and a corner pulled two ways ends up between
+them — which is a crease. That is what stops a joint scissoring when it folds,
+and it is also why there is no seam to hide any more. `mesh.cell` is the grid
+spacing: smaller bends more smoothly and costs more.
+
+**The spine bends.** There are two spine bones, `torso` and `hips`, meeting at
+the waist. One chest-to-pelvis plank cannot bend, and a body that cannot bend at
+the waist stays board-straight through a throw, which is the loudest tell that
+something is not alive.
+
+**Flesh has weight.** `softTissue` is a list of patches — chest, belly, hips,
+thighs, upper arms — that are dragged along a beat late and keep going a beat
+after the bone has stopped. Each one is a point with a radius; the mesh corners
+inside that radius come with it. They cannot move a joint, only the skin over
+one.
+
+Alongside those: each joint has a `mass`, so a hand whips where a hip barely
+registers the same shove; the joint ranges are a person's rather than a doll's,
+with elbows and knees that only fold one way; and the knees and ankles are kept
+on their own sides of each other, so a hard landing cannot leave the legs
+crossed for the rest of the session.
+
+## Checking the rig
+
+Open `tools/rig_check.html` **through a local server** — a `file://` page cannot
+read the sprite back, and reading it back is how the rig cuts the pet up:
+
+```
+python3 -m http.server
+# then http://localhost:8000/tools/rig_check.html
+```
+
+It draws the pet in the four poses that break a rig — standing, folded, thrown,
+landed — with switches for the grid, its wireframe, and the soft-tissue patches.
+**Run the stress test** puts it through four thousand frames of being thrown,
+dragged by a random limb and dropped, and reports the three ways a ragdoll
+fails: a point that has left the number line, the worst a bone stretched, and
+whether the legs ever ended up crossed. The last of those must be zero — nothing
+pulls a mirrored pelvis back on its own.
+
+It changes nothing on disk. Add `?pet=1` to check character 2.
+
+Press **Ctrl+Shift+B** in the app itself for the same overlay live.
+
+## Checking your part files
 
 Open `tools/parts_preview.html` in a browser. It loads `images/`, lists which
 part files it found, and shows the pet rigged and moving — at rest, walking

@@ -31,6 +31,20 @@
 //     moving the joints onto differently-posed artwork is the whole job of
 //     re-rigging — there is no second list to keep in step. See deriveCuts().
 //
+//  5. THE SKIN IS A GRID, NOT A STACK OF PLANKS. Each cut is laid out as a
+//     mesh of quads, and every corner of that mesh is carried by SEVERAL bones
+//     at once, weighted by how near each one is. A pixel halfway between the
+//     upper arm and the forearm is half of each, so the elbow creases instead
+//     of scissoring, and the shoulder rolls instead of snapping. That is the
+//     only difference between a body and a puppet made of boards, and it is
+//     also why there is no seam to hide any more. See skinAt() and buildMesh().
+//
+//     Hung off the same mesh is the soft tissue: chest, belly, hips and thighs
+//     are heavy and they are not bolted to the bone. Each one is a point that
+//     lags the skeleton and springs back, and the mesh corners near it come
+//     along, so the body carries its own weight through a throw and a landing
+//     instead of arriving everywhere at once. See PET_RIG.softTissue.
+//
 //  The rig is deliberately renderer-side. The host app still owns the pet's
 //  position, its fall and its floor; this only decides what the body does
 //  around that position.
@@ -88,8 +102,13 @@ window.PetRig = (function () {
 
     // A bone's parent is whichever bone ends where this one starts. Arms, legs
     // and the head start at joints no bone ends at (shoulders, hips, neck) —
-    // those hang off the torso.
+    // those hang off the torso, unless the bone names a parent itself. Naming
+    // one matters once the spine is more than a single bone: the legs start at
+    // the hips, so their joint limits have to be measured against the PELVIS,
+    // not against the ribcage two bones up. Without that, bending at the waist
+    // silently swings both legs' limits with it.
     for (const b of bones) {
+      if (b.def.parent) { b.parent = byId[b.def.parent] || null; continue; }
       const p = bones.find(o => o !== b && o.def.b === b.def.a);
       b.parent = p || (b.id === 'torso' ? null : byId.torso || null);
     }
@@ -110,13 +129,51 @@ window.PetRig = (function () {
     // and the brace between them forbids that. So the pet lands, its legs cross,
     // and they stay crossed forever. Sign is the missing information. The limbs
     // are deliberately left out — an arm folding across the chest is a pose.
-    let ax = rest.pelvis.x - rest.chest.x, ay = rest.pelvis.y - rest.chest.y;
-    const an = Math.hypot(ax, ay) || 1;
-    ax /= an; ay /= an;
+    //
+    // Each pair is measured against the stretch of spine it actually sits on:
+    // the shoulders against the ribcage, the hips against the pelvis. Measuring
+    // both against one chest-to-pelvis line was right while the spine was a
+    // single bone. It stops being right the moment the waist can bend, because
+    // then that line is a chord across the bend and the hips get held square to
+    // a direction the pelvis is no longer pointing in.
+    const SIDE_OF = {
+      shoulderL: ['chest', 'waist'], shoulderR: ['chest', 'waist'],
+      hipL: ['waist', 'pelvis'],     hipR: ['waist', 'pelvis'],
+    };
     const sides = ['shoulderL', 'shoulderR', 'hipL', 'hipR'].filter(n => rest[n]).map(name => {
-      const d = ax * (rest[name].y - rest.chest.y) - ay * (rest[name].x - rest.chest.x);
-      return { name, sign: Math.sign(d), min: Math.abs(d) * 0.35 };
+      let [from, to] = SIDE_OF[name];
+      if (!rest[from]) from = 'chest';
+      if (!rest[to]) to = 'pelvis';
+      let ax = rest[to].x - rest[from].x, ay = rest[to].y - rest[from].y;
+      const an = Math.hypot(ax, ay) || 1;
+      ax /= an; ay /= an;
+      const d = ax * (rest[name].y - rest[from].y) - ay * (rest[name].x - rest[from].x);
+      return { name, from, to, sign: Math.sign(d), min: Math.abs(d) * 0.35 };
     });
+
+    // Pairs that must not pass through each other. The braces cannot do this
+    // job: a brace is a fixed distance, and knees genuinely do come together.
+    // What they may not do is swap sides, which is what a scissored ragdoll is.
+    const keepApart = (CFG.keepApart || [])
+      .filter(k => rest[k.a] && rest[k.b] && rest[k.axis ? k.axis[0] : 'hipL'])
+      .map(k => {
+        const axis = k.axis || ['hipL', 'hipR'];
+        let ux = rest[axis[1]].x - rest[axis[0]].x, uy = rest[axis[1]].y - rest[axis[0]].y;
+        const n = Math.hypot(ux, uy) || 1;
+        return { a: k.a, b: k.b, min: k.min || 0, axis, ux: ux / n, uy: uy / n };
+      });
+
+    // How heavy each joint is. Equal weights make a body that moves like a
+    // mobile — every part answering a shove by the same amount. Real limbs
+    // taper: a hand is a fraction of the arm carrying it, so it whips and
+    // overshoots while the hips barely register the same push. This is the
+    // cheapest realism in the file; it is one number per joint.
+    const masses = (CFG.tuning && CFG.tuning.masses) || {};
+    const invMass = {};
+    for (const k in rest) {
+      const m = masses[k];
+      invMass[k] = (typeof m === 'number' && m > 0) ? 1 / m : 1;
+    }
 
     // Which joint you actually take hold of when you grab a given limb. Only
     // the far ends are draggable — grabbing an upper arm and pulling would just
@@ -149,8 +206,31 @@ window.PetRig = (function () {
       p.segments = Math.max(0, p.def.segments | 0);
     }
 
+    // The bones as plain segments in source pixels — what every skinning weight
+    // and every derived cut is measured against. Built once, read constantly.
+    const seg = bones.map(b => {
+      const A = rest[b.def.a], B = rest[b.def.b];
+      const dx = B.x - A.x, dy = B.y - A.y;
+      return { ax: A.x, ay: A.y, dx, dy, L: (dx * dx + dy * dy) || 1 };
+    });
+
+    const mesh = Object.assign({
+      enabled: true, cell: 30, bleed: 34, sharpness: 3.2, bones: 3,
+      eps: 5, seamBleed: 0.5,
+    }, CFG.mesh || {});
+
+    // Soft tissue, with its defaults filled in. These are read by the mesh (to
+    // work out which corners a wobble reaches) and by the simulation (to work
+    // out how far it wobbles), so they are resolved once, here, and both sides
+    // index the same array.
+    const softDefs = (CFG.softTissue || []).map(d => Object.assign({
+      radius: 90, lag: 0.5, stiffness: 110, damping: 9,
+      sag: 0, maxOffset: 8, weight: 1,
+    }, d));
+
     const G = {
-      poseName, rest, bones, byId, braces, sides, handle, reach, footY, parts,
+      poseName, rest, bones, byId, braces, sides, keepApart, handle, reach,
+      footY, parts, seg, mesh, invMass, softDefs,
       reachSlack: pose.reachSlack || 1.05,
       cx: (rest.chest.x + rest.pelvis.x) / 2,
       // Everything that gets drawn, back to front.
@@ -158,8 +238,159 @@ window.PetRig = (function () {
       ).concat(parts.map(p => ({ kind: 'part', ref: p, z: p.z }))
       ).sort((p, q) => p.z - q.z),
     };
+    // Where each soft-tissue point hangs. Same skinning as the mesh corners
+    // around it, so a wobble anchored between two bones is carried by both and
+    // does not jump when the nearer one turns.
+    for (const d of softDefs) d._skin = skinAt(G, d.x, d.y);
+
     geomCache[poseName] = G;
     return G;
+  }
+
+  // ===========================================================================
+  //  SKINNING — which bones carry a point, and how much of it each one has
+  // ===========================================================================
+  //  deriveCuts() asks "which ONE bone owns this pixel", because a pixel has to
+  //  be drawn from somewhere. This asks the softer question the mesh needs:
+  //  which bones MOVE this point, and in what proportion. Deep inside a forearm
+  //  the answer is "the forearm, entirely". Over the elbow it is half and half,
+  //  and that half-and-half is the crease.
+  //
+  //  Weight falls off as an inverse power of distance to the bone, so it is
+  //  smooth everywhere and needs no per-joint tuning. Two guards keep it honest:
+  //  only the nearest 'bones' entries count, and a bone further than 'bleed'
+  //  past the nearest one is dropped outright — without that, a hand held near
+  //  the hip would have the thigh quietly tugging at it across the gap.
+  function skinAt(G, x, y) {
+    const M = G.mesh, n = G.bones.length, d = new Array(n);
+    let dmin = Infinity;
+    for (let k = 0; k < n; k++) {
+      const sg = G.seg[k];
+      let t = ((x - sg.ax) * sg.dx + (y - sg.ay) * sg.dy) / sg.L;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const qx = sg.ax + t * sg.dx - x, qy = sg.ay + t * sg.dy - y;
+      const dist = Math.sqrt(qx * qx + qy * qy);
+      d[k] = dist;
+      if (dist < dmin) dmin = dist;
+    }
+    const cut = dmin + M.bleed;
+    const idx = [];
+    for (let k = 0; k < n; k++) if (d[k] <= cut) idx.push(k);
+    idx.sort((a, b) => d[a] - d[b]);
+    if (idx.length > M.bones) idx.length = M.bones;
+
+    const w = new Float32Array(idx.length);
+    let sum = 0;
+    for (let i = 0; i < idx.length; i++) {
+      const v = Math.pow(1 / (d[idx[i]] + M.eps), M.sharpness);
+      w[i] = v; sum += v;
+    }
+    if (!sum) { return { bones: [idx[0] || 0], w: new Float32Array([1]) }; }
+    for (let i = 0; i < w.length; i++) w[i] /= sum;
+    return { bones: idx, w };
+  }
+
+  // Falloff of a soft-tissue point over the mesh around it: 1 at its centre,
+  // 0 at its radius, flat at both ends so the moving patch has no visible edge.
+  function softFalloff(d, r) {
+    if (d >= r) return 0;
+    const t = 1 - (d / r) * (d / r);
+    return t * t;
+  }
+
+  // ---- The mesh over one cut ------------------------------------------------
+  // A grid of quads in the cut's own texture space. Every corner is skinned, so
+  // the quads shear and fan as the bones move; every quad remembers the patch of
+  // texture it shows, so drawing one is a clip and a single drawImage of just
+  // that patch. Empty quads are dropped at build time — most of a limb's
+  // bounding box is background, and a quad with nothing in it still costs a
+  // clip if you let it live.
+  function buildMesh(G, cut, softDefs) {
+    const M = G.mesh;
+    const [rx, ry, rw, rh] = cut.rect;
+    const cols = Math.max(1, Math.round(rw / M.cell));
+    const rows = Math.max(1, Math.round(rh / M.cell));
+
+    let px = null;
+    try {
+      px = cut.canvas.getContext('2d', { willReadFrequently: true })
+        .getImageData(0, 0, rw, rh).data;
+    } catch (_) { /* no alpha to read: keep every quad */ }
+
+    const verts = [];
+    for (let j = 0; j <= rows; j++) {
+      for (let i = 0; i <= cols; i++) {
+        const u = rw * i / cols, v = rh * j / rows;
+        const sx = rx + u, sy = ry + v;
+        const sk = skinAt(G, sx, sy);
+        let soft = null;
+        for (let k = 0; k < softDefs.length; k++) {
+          const sd = softDefs[k];
+          const w = softFalloff(Math.hypot(sx - sd.x, sy - sd.y), sd.radius);
+          if (w > 0.004) (soft || (soft = [])).push({ i: k, w: w * (sd.weight == null ? 1 : sd.weight) });
+        }
+        verts.push({ u, v, sx, sy, bones: sk.bones, w: sk.w, soft, x: 0, y: 0 });
+      }
+    }
+
+    const quads = [];
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        const x0 = Math.floor(rw * i / cols), x1 = Math.ceil(rw * (i + 1) / cols);
+        const y0 = Math.floor(rh * j / rows), y1 = Math.ceil(rh * (j + 1) / rows);
+        if (px) {
+          let any = false;
+          for (let y = y0; y < y1 && !any; y++) {
+            const row = y * rw;
+            for (let x = x0; x < x1; x++) if (px[((row + x) << 2) + 3] >= 8) { any = true; break; }
+          }
+          if (!any) continue;
+        }
+        // The texture patch, grown a pixel so neighbouring quads sample across
+        // the join instead of each stopping exactly on it.
+        const tx = Math.max(0, x0 - 1), ty = Math.max(0, y0 - 1);
+        const tw = Math.min(rw, x1 + 1) - tx, th = Math.min(rh, y1 + 1) - ty;
+        quads.push({
+          a: j * (cols + 1) + i, b: j * (cols + 1) + i + 1,
+          c: (j + 1) * (cols + 1) + i + 1, d: (j + 1) * (cols + 1) + i,
+          tx, ty, tw, th,
+        });
+      }
+    }
+    return { cols, rows, verts, quads };
+  }
+
+  // One textured triangle. Canvas 2D has no mesh call, so this is the standard
+  // build: clip to the triangle, then set the affine transform that carries the
+  // texture's three corners onto the screen's three, and draw. The clip is grown
+  // a fraction of a pixel outward from the centre because two triangles that
+  // share an edge each antialias their own side of it, and the two half-covered
+  // edges do not add back up to one opaque line.
+  function drawTri(ctx, img, v0, v1, v2, q, grow) {
+    const ux1 = v1.u - v0.u, uy1 = v1.v - v0.v;
+    const ux2 = v2.u - v0.u, uy2 = v2.v - v0.v;
+    const det = ux1 * uy2 - ux2 * uy1;
+    if (!det) return;
+
+    let cx = (v0.x + v1.x + v2.x) / 3, cy = (v0.y + v1.y + v2.y) / 3;
+    ctx.save();
+    ctx.beginPath();
+    for (const v of [v0, v1, v2]) {
+      let dx = v.x - cx, dy = v.y - cy;
+      const L = Math.hypot(dx, dy) || 1;
+      const gx = v.x + dx / L * grow, gy = v.y + dy / L * grow;
+      if (v === v0) ctx.moveTo(gx, gy); else ctx.lineTo(gx, gy);
+    }
+    ctx.closePath();
+    ctx.clip();
+
+    const a = (uy2 * (v1.x - v0.x) - uy1 * (v2.x - v0.x)) / det;
+    const b = (uy2 * (v1.y - v0.y) - uy1 * (v2.y - v0.y)) / det;
+    const c = (ux1 * (v2.x - v0.x) - ux2 * (v1.x - v0.x)) / det;
+    const d = (ux1 * (v2.y - v0.y) - ux2 * (v1.y - v0.y)) / det;
+    ctx.transform(a, b, c, d, v0.x - a * v0.u - c * v0.v, v0.y - b * v0.u - d * v0.v);
+    ctx.drawImage(img, q.tx, q.ty, q.tw, q.th, q.tx, q.ty, q.tw, q.th);
+    ctx.restore();
   }
 
   // ===========================================================================
@@ -479,7 +710,7 @@ window.PetRig = (function () {
     function makePoints() {
       P = {}; points = [];
       for (const k in G.rest) {
-        const p = { name: k, x: 0, y: 0, px: 0, py: 0, rx: 0, ry: 0, w: 1, chain: null };
+        const p = { name: k, x: 0, y: 0, px: 0, py: 0, rx: 0, ry: 0, w: 1, im: G.invMass[k] || 1, chain: null };
         P[k] = p; points.push(p);
       }
     }
@@ -487,7 +718,19 @@ window.PetRig = (function () {
 
     let baseImg = null, skin = null, ready = false;
     let squash = 0, squashVel = 0, acc = 0, moved = 0, swayT = 0;
-    let debug = false, debugInfo = '';
+    let debug = false, debugInfo = '', lastScale = 1;
+
+    // Every bone's current placement, per pet. It cannot live on the bone: the
+    // geometry is SHARED between pets in the same pose, so two pets would write
+    // over each other's arms.
+    const xf = G.bones.map(() => ({ ca: 1, sa: 0, x: 0, y: 0, rx: 0, ry: 0 }));
+
+    // Soft tissue. ox/oy is how far this patch of the body currently trails the
+    // bone under it — the whole of what makes a chest, a belly and a pair of
+    // thighs read as weight rather than as paint.
+    const softs = G.softDefs.map(def => ({
+      def, ox: 0, oy: 0, vx: 0, vy: 0, tx: 0, ty: 0, live: false,
+    }));
 
     // Per-instance cut artwork, keyed by bone id / part id.
     const cuts = {};    // boneId -> { rect, canvas }
@@ -594,6 +837,11 @@ window.PetRig = (function () {
           const A = G.rest[b.def.a];
           c.ox = c.rect[0] - A.x;    // where the cut-out sits, relative to the
           c.oy = c.rect[1] - A.y;    // joint it swings about
+          // The grid this cut is drawn through. Built here and not per frame:
+          // it depends on the skeleton and on which of the cut's pixels are
+          // opaque, and neither changes until the outfit does — which is the
+          // one thing that brings us back through rebuild() anyway.
+          c.mesh = G.mesh.enabled ? buildMesh(G, c, G.softDefs) : null;
         }
       });
 
@@ -642,6 +890,7 @@ window.PetRig = (function () {
 
     function placeRest(S) {
       const fy = G.footY, cx = G.cx;
+      lastScale = S.scale;
       for (const p of points) {
         if (p.chain) continue;
         const r = G.rest[p.name];
@@ -696,8 +945,73 @@ window.PetRig = (function () {
       }
     }
 
+    // Where each bone is right now, as the affine that carries a point from the
+    // artwork onto the screen. Recomputed whenever the skeleton has moved, and
+    // then read by every mesh corner and every soft-tissue anchor.
+    function updateXf(S) {
+      for (let k = 0; k < G.bones.length; k++) {
+        const b = G.bones[k], A = P[b.def.a], B = P[b.def.b];
+        const ang = Math.atan2(B.y - A.y, B.x - A.x) - b.ang;
+        const t = xf[k], ra = G.rest[b.def.a];
+        t.ca = Math.cos(ang) * S.scale;
+        t.sa = Math.sin(ang) * S.scale;
+        t.x = A.x; t.y = A.y; t.rx = ra.x; t.ry = ra.y;
+      }
+    }
+
+    // Linear blend skinning: run the point through every bone that carries it
+    // and take the weighted average of where they each put it. Averaging the
+    // RESULTS rather than the angles is what makes a joint crease — the two
+    // halves of an elbow pull the same corner two different ways and it ends up
+    // between them, which is exactly where skin goes.
+    const skinTmp = { x: 0, y: 0 };
+    function skinPoint(bones, w, sx, sy, out) {
+      let X = 0, Y = 0;
+      for (let i = 0; i < bones.length; i++) {
+        const t = xf[bones[i]], k = w[i];
+        const dx = sx - t.rx, dy = sy - t.ry;
+        X += k * (t.x + dx * t.ca - dy * t.sa);
+        Y += k * (t.y + dx * t.sa + dy * t.ca);
+      }
+      out.x = X; out.y = Y;
+      return out;
+    }
+
+    // Flesh has mass and the skeleton does not carry it kindly. Each soft point
+    // is left behind by however far its anchor moved ('lag'), then springs back
+    // — so a throw sets the chest and the hips swinging, a landing shakes them,
+    // and standing still costs one spring that is already at rest.
+    //
+    // Deliberately NOT part of the constraint solver: it must not be able to
+    // move a joint, only the skin over one. A wobble that could drag the
+    // skeleton would feed back into itself and the pet would shiver.
+    function stepSoft(dt, S) {
+      if (!softs.length || !(dt > 0)) return 0;
+      const g = (T.gravity || 0) * S.scale;
+      let energy = 0;
+      for (const s of softs) {
+        const d = s.def;
+        skinPoint(d._skin.bones, d._skin.w, d.x, d.y, skinTmp);
+        if (!s.live) { s.tx = skinTmp.x; s.ty = skinTmp.y; s.live = true; }
+        const dx = skinTmp.x - s.tx, dy = skinTmp.y - s.ty;
+        s.tx = skinTmp.x; s.ty = skinTmp.y;
+        s.ox -= dx * d.lag; s.oy -= dy * d.lag;
+        s.vx += -s.ox * d.stiffness * dt;
+        s.vy += (-s.oy * d.stiffness + g * d.sag) * dt;
+        const damp = Math.exp(-d.damping * dt);
+        s.vx *= damp; s.vy *= damp;
+        s.ox += s.vx * dt; s.oy += s.vy * dt;
+        const cap = d.maxOffset * S.scale;
+        const m = Math.hypot(s.ox, s.oy);
+        if (m > cap) { const f = cap / m; s.ox *= f; s.oy *= f; s.vx *= f; s.vy *= f; }
+        energy = Math.max(energy, Math.abs(s.vx) + Math.abs(s.vy));
+      }
+      return energy * dt;
+    }
+
     function snap() {
       squash = 0; squashVel = 0;
+      for (const s of softs) { s.ox = s.oy = s.vx = s.vy = 0; s.live = false; }
       anchorChainRoots();
       for (const p of points) { p.x = p.px = p.rx; p.y = p.py = p.ry; }
       for (const id in parts) { parts[id].lag = 0; parts[id].lagVel = 0; }
@@ -728,23 +1042,43 @@ window.PetRig = (function () {
         if (rel >= lo && rel <= hi) continue;
         // Swing the far end back to the edge of what the joint allows. The near
         // end is the grip and does not move — that is what keeps the limb on.
-        const want = parAng + b.rel + (rel < lo ? lo : hi);
+        //
+        // Not all at once, though. A joint that snaps to its limit reads as a
+        // doll hitting a stop; a knee reaching the end of its travel is
+        // ligament taking up load, and it decelerates over the last few degrees.
+        // Inside 'limitSoft' degrees the correction is only partial, so the
+        // bone-length and brace passes that run afterwards get a say and the
+        // limb eases into the stop. Past the cushion it is absolute — past the
+        // cushion the joint is not stiff, it is broken.
+        const edge = rel < lo ? lo : hi;
+        const cushion = (T.limitSoft || 0) * DEG;
+        const floor = T.limitFloor == null ? 1 : T.limitFloor;
+        const mix = cushion > 0
+          ? floor + (1 - floor) * Math.min(1, Math.abs(rel - edge) / cushion)
+          : 1;
+        const want = cur + (edge - rel) * mix;
         const len = Math.hypot(B.x - A.x, B.y - A.y) || b.len;
         B.x = A.x + Math.cos(want) * len;
         B.y = A.y + Math.sin(want) * len;
       }
     }
 
-    function solveSides(scale) {
-      const C = P.chest, L = P.pelvis;
-      let ux = L.x - C.x, uy = L.y - C.y;
-      const n = Math.hypot(ux, uy) || 1;
-      ux /= n; uy /= n;
+    // 'frac' scales how much clearance is asked for. This runs twice a pass:
+    // once at full strength before the bone lengths, where it may give ground,
+    // and once at 0 afterwards, where all it does is refuse to let a joint end
+    // up on the wrong side of the spine. The second pass is the one that cannot
+    // be skipped and almost never fires — but a mirrored pelvis is permanent
+    // (see the note on braces in the config), so "almost never" is not "never".
+    function solveSides(scale, frac) {
       for (const s of G.sides) {
         const q = P[s.name];
         if (!q.w) continue;
+        const C = P[s.from] || P.chest, L = P[s.to] || P.pelvis;
+        let ux = L.x - C.x, uy = L.y - C.y;
+        const n = Math.hypot(ux, uy) || 1;
+        ux /= n; uy /= n;
         const d = ux * (q.y - C.y) - uy * (q.x - C.x);   // signed distance off the spine
-        const want = s.sign * s.min * scale;
+        const want = s.sign * s.min * scale * frac;
         if (s.sign > 0 ? d >= want : d <= want) continue;
         const push = want - d;
         q.x += -uy * push;
@@ -766,6 +1100,32 @@ window.PetRig = (function () {
           if (k) { pt.x += (pt.rx - pt.x) * k; pt.y += (pt.ry - pt.y) * k; }
           solveDistance(pts[i - 1], pt, slot.chain.strips[i - 1].len * scale);
         }
+      }
+    }
+
+    // Knees and ankles that pass through each other. The braces cannot help
+    // here — a brace is a fixed distance and knees really do come together — and
+    // the side constraint only covers the four joints bolted to the spine. This
+    // is the same idea one step down the leg: measure along the hip axis as it
+    // is NOW, and if the left has ended up right of the right, push them back
+    // past each other. Heavier joints give ground more slowly, which is why it
+    // is the knee that mostly moves and not the hip carrying it.
+    function solveKeepApart(scale, frac) {
+      for (const k of G.keepApart) {
+        const a = P[k.a], b = P[k.b], A0 = P[k.axis[0]], A1 = P[k.axis[1]];
+        if (!a || !b || !A0 || !A1) continue;
+        let ux = A1.x - A0.x, uy = A1.y - A0.y;
+        const n = Math.hypot(ux, uy) || 1;
+        ux /= n; uy /= n;
+        const gap = ux * (b.x - a.x) + uy * (b.y - a.y);
+        const want = k.min * scale * frac;
+        if (gap >= want) continue;
+        const sum = a.w + b.w;
+        if (!sum) continue;
+        const push = want - gap;
+        const wa = push * a.w / sum, wb = push * b.w / sum;
+        a.x -= ux * wa; a.y -= uy * wa;
+        b.x += ux * wb; b.y += uy * wb;
       }
     }
 
@@ -845,6 +1205,11 @@ window.PetRig = (function () {
     // whole excess into the arm, which then visibly stretches.
     const FOOT_GRIP = 0.5;
 
+    // How much of its clearance the sign-only pass asks back for. Not zero:
+    // pushed to exactly touching, a pair can be left a rounding error on the
+    // wrong side and stay there. A fifth is unambiguous and too small to show.
+    const UNCROSS = 0.2;
+
     // ---- The step ------------------------------------------------------------
     function substep(h, S) {
       // Who the solver may not move. Normally that is the chest, which is the
@@ -853,7 +1218,7 @@ window.PetRig = (function () {
       // set free, so the pull leans the whole body over instead of stretching
       // the arm. Pin both and there is nothing left to give — the arm is the
       // only thing that can move, and it tears.
-      for (const p of points) p.w = p.chain ? (p.index === 0 ? 0 : 1) : 1;
+      for (const p of points) p.w = p.chain ? (p.index === 0 ? 0 : 1) : p.im;
       let pin = null;
       if (S.pin) {
         pin = reachable(S.pin, S.scale);
@@ -899,7 +1264,12 @@ window.PetRig = (function () {
         if (p) { p.x = pin.x; p.y = pin.y; }
         for (const f of ['footL', 'footR']) {
           const q = P[f];
-          if (!q) continue;
+          // Not the foot being pulled. Gripping the floor with the very foot
+          // the cursor has hold of drags it half way back to where it was
+          // standing, every substep, so the pet is picked up by one ankle and
+          // the ankle does not come — which is not a grip, it is a tug of war
+          // with itself.
+          if (!q || f === pin.joint) continue;
           q.x += (q.rx - q.x) * FOOT_GRIP;
           q.y += (q.ry - q.y) * FOOT_GRIP;
         }
@@ -910,19 +1280,45 @@ window.PetRig = (function () {
       // lengths run last, because a stretched bone is the one error you can
       // actually see. A joint limit swings a joint without caring what that does
       // to the bone below it, and the braces are only there to stop the torso
-      // folding, so both of those go first and give ground instead.
+      // folding, so both of those go first and give ground instead. So do the
+      // floor and the two sideways constraints, for exactly the same reason:
+      // every one of them moves a joint without owning the bone it hangs off.
       for (let it = 0; it < T.iterations; it++) {
         pullToRest();
         solveLimits();
         for (const c of G.braces) solveDistance(P[c.a], P[c.b], c.len * S.scale);
+        // The ground goes BEFORE the bone lengths, not after. It is the one
+        // constraint that moves a point by however much it likes — a body that
+        // has come down through the floor gets its feet lifted the whole way
+        // back in a single pass — and whatever runs last is what holds. Run it
+        // last and the shins come out of a hard landing at nearly twice their
+        // length, because the floor lifted the ankles and nothing afterwards
+        // pulled the knees down to meet them. This way the bones get the final
+        // say and the worst the floor can do is let a foot sink a pixel or two,
+        // which is invisible; a leg made of elastic is not.
+        solveFloor(S);
+        // Same reasoning for these two: both shove a joint sideways without
+        // caring what it does to the bone hanging off it. Neither is undone by
+        // running first — a side constraint that has pushed a hip back onto its
+        // own side of the spine is not going to be pushed back across by a bone
+        // wanting to be its own length — so both give ground and the skeleton
+        // still comes out the right length.
+        solveSides(S.scale, 1);
+        solveKeepApart(S.scale, 1);
         for (const b of G.bones) solveDistance(P[b.def.a], P[b.def.b], b.len * S.scale);
-        solveSides(S.scale);
+        // ...and again with almost nothing asked for but the sign. The bone pass above
+        // is free to slide a knee back across its neighbour on the way to being
+        // the right length, and once a pair has swapped sides nothing pulls it
+        // back — unswapping means dragging them through each other. This costs
+        // a handful of dot products and it is what keeps the legs the pet's own
+        // way round for the rest of the session.
+        solveSides(S.scale, UNCROSS);
+        solveKeepApart(S.scale, UNCROSS);
         // Chains hang off the finished skeleton, so they are solved after it.
         // Their root is weightless, so nothing they do can drag a limb about.
         placeChainRest(S);
         anchorChainRoots();
         solveChains(S.scale);
-        solveFloor(S);
         if (!pin) anchorRoot();
       }
 
@@ -939,8 +1335,11 @@ window.PetRig = (function () {
         for (let it = 0; it < 6; it++) {
           solveLimits();
           for (const c of G.braces) solveDistance(P[c.a], P[c.b], c.len * S.scale);
+          solveSides(S.scale, 1);
+          solveKeepApart(S.scale, 1);
           for (const b of G.bones) solveDistance(P[b.def.a], P[b.def.b], b.len * S.scale);
-          solveSides(S.scale);
+          solveSides(S.scale, UNCROSS);
+          solveKeepApart(S.scale, UNCROSS);
         }
       }
     }
@@ -997,13 +1396,24 @@ window.PetRig = (function () {
         });
         stepParts(dt, S);
       }
+      // Always, even on a frame with no substep in it: the skeleton can be
+      // perfectly still while the flesh over it is still settling, and that
+      // settling is the thing that has to keep the pet awake until it finishes.
+      updateXf(S);
+      moved = Math.max(moved, stepSoft(dt, S));
     }
 
     // Strength comes straight from the host's impact number.
     function kick(impact) {
       if (!ready) return;
-      squash = (T.landSquash || 0) * clamp(impact, 0, 1);
+      const hit = clamp(impact, 0, 1);
+      squash = (T.landSquash || 0) * hit;
       squashVel = 0;
+      // The squash alone would shake the flesh anyway, through the rest pose it
+      // compresses — but it arrives over the next few frames, and an impact does
+      // not. This puts the jolt in on the frame it happened.
+      const jolt = (T.landJolt || 0) * hit * lastScale;
+      if (jolt) for (const s of softs) s.vy -= jolt * (s.def.lag || 0);
     }
 
     // ---- Drawing -------------------------------------------------------------
@@ -1048,14 +1458,44 @@ window.PetRig = (function () {
       ctx.restore();
     }
 
+    // The cut, drawn through its grid. Every corner is placed by all the bones
+    // that carry it and then nudged by whatever soft tissue reaches it, and each
+    // quad is drawn as the two triangles between four such corners. The old
+    // rigid path below is what this replaces: one rotate and one drawImage,
+    // which is the same picture only when nothing is bending.
+    function drawMeshBone(ctx, c, ox, oy) {
+      const m = c.mesh, V = m.verts;
+      for (let i = 0; i < V.length; i++) {
+        const v = V[i];
+        skinPoint(v.bones, v.w, v.sx, v.sy, skinTmp);
+        let X = skinTmp.x + ox, Y = skinTmp.y + oy;
+        if (v.soft) {
+          for (let k = 0; k < v.soft.length; k++) {
+            const inf = v.soft[k], sp = softs[inf.i];
+            X += sp.ox * inf.w; Y += sp.oy * inf.w;
+          }
+        }
+        v.x = X; v.y = Y;
+      }
+      const grow = G.mesh.seamBleed;
+      for (let i = 0; i < m.quads.length; i++) {
+        const q = m.quads[i];
+        const A = V[q.a], B = V[q.b], C = V[q.c], D = V[q.d];
+        drawTri(ctx, c.canvas, A, B, C, q, grow);
+        drawTri(ctx, c.canvas, A, C, D, q, grow);
+      }
+    }
+
     function draw(ctx, S) {
       if (!ready) return false;
       const org = originOf(S);
       const ox = -org.x, oy = -org.y;
+      updateXf(S);
       for (const item of G.drawList) {
         if (item.kind === 'bone') {
           const b = item.ref, c = cuts[b.id];
           if (!c || !c.canvas) continue;
+          if (c.mesh) { drawMeshBone(ctx, c, ox, oy); continue; }
           const A = P[b.def.a], B = P[b.def.b];
           const ang = Math.atan2(B.y - A.y, B.x - A.x) - b.ang;
           ctx.save();
@@ -1118,6 +1558,23 @@ window.PetRig = (function () {
         ctx.strokeRect(c.ox * S.scale, c.oy * S.scale, c.rect[2] * S.scale, c.rect[3] * S.scale);
         ctx.restore();
       }
+      // The grid itself, as it currently stands. This is the view to have open
+      // while moving a joint: a bone in the wrong place shows up here as a fan
+      // of quads collapsing or crossing over long before it shows up as a
+      // strange-looking pet.
+      ctx.strokeStyle = 'rgba(90,200,255,.30)';
+      ctx.beginPath();
+      for (const b of G.bones) {
+        const c = cuts[b.id];
+        if (!c || !c.mesh) continue;
+        for (const q of c.mesh.quads) {
+          const V = c.mesh.verts, A = V[q.a], B = V[q.b], C = V[q.c], D = V[q.d];
+          ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y);
+          ctx.lineTo(C.x, C.y); ctx.lineTo(D.x, D.y); ctx.closePath();
+        }
+      }
+      ctx.stroke();
+
       ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,60,60,.9)';
       ctx.beginPath();
       for (const b of G.bones) {
@@ -1125,6 +1582,23 @@ window.PetRig = (function () {
         ctx.lineTo(P[b.def.b].x + ox, P[b.def.b].y + oy);
       }
       ctx.stroke();
+
+      // Soft tissue: the circle is how far the wobble reaches, the line is where
+      // that patch of body is right now against where the bone says it should be.
+      ctx.lineWidth = 1;
+      for (const sp of softs) {
+        skinPoint(sp.def._skin.bones, sp.def._skin.w, sp.def.x, sp.def.y, skinTmp);
+        const tx = skinTmp.x + ox, ty = skinTmp.y + oy;
+        ctx.strokeStyle = 'rgba(255,120,200,.35)';
+        ctx.beginPath();
+        ctx.arc(tx, ty, sp.def.radius * S.scale, 0, 7);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,120,200,.95)';
+        ctx.beginPath();
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(tx + sp.ox, ty + sp.oy);
+        ctx.stroke();
+      }
       // Back-part chains, so a new tail can be dragged onto its art by eye.
       ctx.strokeStyle = 'rgba(255,160,0,.9)';
       ctx.beginPath();
@@ -1171,6 +1645,21 @@ window.PetRig = (function () {
       // What the Ctrl+Shift+B overlay and the test harness read: where every
       // back-part chain currently is, and how far its root has drifted from the
       // bone that carries it (which must stay 0 — that is the grip).
+      // What the parts preview and the test harness read: how big the grid
+      // actually came out, and how far each soft-tissue patch is currently
+      // trailing its bone.
+      _meshDebug() {
+        let verts = 0, quads = 0;
+        for (const id in cuts) {
+          const c = cuts[id];
+          if (!c || !c.mesh) continue;
+          verts += c.mesh.verts.length; quads += c.mesh.quads.length;
+        }
+        return {
+          verts, quads, tris: quads * 2,
+          soft: softs.map(s => ({ id: s.def.id, ox: s.ox, oy: s.oy })),
+        };
+      },
       _chainDebug() {
         const out = {};
         for (const id in parts) {
