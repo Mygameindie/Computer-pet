@@ -41,6 +41,18 @@
   <script src="outfit_config.js"></script>
   <script src="outfit_system.js"></script>
   <script src="outfit_presets.js"></script>
+
+  <!-- Wings, tail and hair. This decides which PNG is which part, and draws
+       them flat if the ragdoll is off or still cutting; the rig asks it the
+       same question, so the two can never disagree about the art. -->
+  <script src="pet_back_layer.js"></script>
+
+  <!-- The skeleton and the ragdoll. Config first: pet_rig.js reads it at load
+       time to work out bone lengths and rest angles. Both pets get their own
+       rig instance — see pet_desktop.js. -->
+  <script src="pet_rig_config.js"></script>
+  <script src="pet_rig.js"></script>
+
   <script src="pet_desktop.js"></script>
 </body>
 

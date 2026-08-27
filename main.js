@@ -55,9 +55,13 @@ let droppedIn = false;   // have the pets made their entrance yet?
 // start as a guess and are replaced by the real drawn size the first time a
 // renderer measures its sprite (see the 'pet-size' IPC).
 const state = {
+  // 'floor' is groundY() published so the renderers can see it. The ragdoll
+  // needs the real ground line to stop a thrown limb sinking through it, and
+  // working it out again in the renderer would mean shipping the whole display
+  // layout over IPC.
   pets: [
-    { x: 0, y: 0, vx: 0, vy: 0, w: 220, h: 250, visible: true, dragging: false, landedAt: 0, impact: 0 },
-    { x: 0, y: 0, vx: 0, vy: 0, w: 220, h: 250, visible: true, dragging: false, landedAt: 0, impact: 0 },
+    { x: 0, y: 0, vx: 0, vy: 0, w: 220, h: 250, visible: true, dragging: false, landedAt: 0, impact: 0, floor: 0 },
+    { x: 0, y: 0, vx: 0, vy: 0, w: 220, h: 250, visible: true, dragging: false, landedAt: 0, impact: 0, floor: 0 },
   ],
   activePet: 0,
   gravity: true,
@@ -120,7 +124,8 @@ function resetPositions() {
 function clampPet(pet) {
   const a = displayArea();
   pet.x = Math.max(a.left, Math.min(pet.x, a.right - pet.w));
-  pet.y = Math.max(a.top, Math.min(pet.y, groundY(pet)));
+  pet.floor = groundY(pet);
+  pet.y = Math.max(a.top, Math.min(pet.y, pet.floor));
 }
 
 function clampAll() {
@@ -190,6 +195,7 @@ function stepPhysics() {
     if (!pet.visible || pet.dragging) continue;
 
     const floor = groundY(pet);
+    pet.floor = floor;
     const airborne = pet.y < floor - 0.5;
     if (!airborne && pet.vx === 0 && pet.vy === 0) continue;   // asleep
 
@@ -207,6 +213,7 @@ function stepPhysics() {
     // Recompute the floor: a sideways bounce may have moved it to another
     // monitor whose work area ends somewhere else.
     const landing = groundY(pet);
+    pet.floor = landing;
     if (pet.y >= landing) {
       const hit = pet.vy;
       pet.y = landing;
