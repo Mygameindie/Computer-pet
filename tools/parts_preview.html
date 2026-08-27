@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<!-- This page lives in tools/ but everything it loads — the rig scripts and
+     images/ — sits one level up, and asset_path_fix.js rewrites bare image
+     names to "images/<name>" relative to the PAGE. Without this the whole page
+     would go looking for tools/images/. -->
+<base href="../" />
+<title>Part preview</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, sans-serif; color: #1b2430; background: #eef1f5;
+         display: flex; min-height: 100vh; }
+  #stage { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
+  #stage canvas { background:
+      repeating-conic-gradient(#e3e7ee 0% 25%, #f7f9fb 0% 50%) 50% / 24px 24px; border-radius: 8px; }
+  #side { width: 330px; padding: 18px; background: #fff; border-left: 1px solid #d8dee7;
+          overflow: auto; }
+  h1 { font-size: 17px; margin: 0 0 2px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #6b7684;
+       margin: 22px 0 8px; }
+  .sub { color: #6b7684; font-size: 12.5px; margin-bottom: 4px; }
+  button { font: inherit; padding: 7px 12px; margin: 0 6px 6px 0; border: 1px solid #c8d0da;
+           background: #fff; border-radius: 7px; cursor: pointer; }
+  button:hover { background: #f1f4f8; }
+  button.on { background: #1b2430; color: #fff; border-color: #1b2430; }
+  label { display: flex; align-items: center; gap: 8px; padding: 5px 0; cursor: pointer; }
+  code { font: 12.5px ui-monospace, monospace; background: #f1f4f8; padding: 1px 5px;
+         border-radius: 4px; }
+  .missing { color: #a8b0bb; }
+  .tag { font-size: 11px; color: #6b7684; }
+  .warn { background: #fff6e5; border: 1px solid #f0d8a8; padding: 9px 11px; border-radius: 7px;
+          font-size: 12.5px; color: #6b4c12; }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="c" width="760" height="900"></canvas></div>
+
+<div id="side">
+  <h1>Part preview</h1>
+  <div class="sub">Redraw a part, save it into <code>images/</code>, then Reload art.
+    Nothing here changes your files.</div>
+
+  <h2>Motion</h2>
+  <div id="modes"></div>
+
+  <h2>Parts found</h2>
+  <div id="parts"></div>
+
+  <h2>Show</h2>
+  <label><input type="checkbox" id="bones"> Skeleton and joints</label>
+  <label><input type="checkbox" id="slow"> Quarter speed</label>
+
+  <h2>Scale</h2>
+  <input type="range" id="scale" min="20" max="90" value="52" style="width:100%">
+
+  <h2></h2>
+  <button id="reload">↻ Reload art</button>
+  <div id="note"></div>
+</div>
+
+<script src="asset_path_fix.js"></script>
+<script src="pet_back_layer.js"></script>
+<script src="pet_rig_config.js"></script>
+<script src="pet_rig.js"></script>
+<script>
+(() => {
+  const CFG = window.PET_RIG;
+  const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+
+  // The declared parts, and whether their art actually loaded. Kept as the one
+  // source of truth so switching a part off and rebuilding uses the same list.
+  const declared = []
+    .concat((CFG.backParts || []).map(d => ({ def: d, front: false })))
+    .concat((CFG.frontParts || []).map(d => ({ def: d, front: true })));
+  declared.forEach(p => { p.on = true; });
+
+  const PET = Number(new URLSearchParams(location.search).get('pet') || 0);
+  let rig = null, base = null, mode = 'idle', t0 = performance.now(), showBones = false, slow = false;
+  let scale = 0.52;
+
+  function loadImage(src) {
+    return new Promise(r => { const i = new Image(); i.onload = () => r(i); i.onerror = () => r(null); i.src = src; });
+  }
+
+  // Rebuilding is a whole-sprite read, so it happens on a toggle — never per
+  // frame. Switching a part off means handing the rig a list without it.
+  function build() {
+    CFG.backParts  = declared.filter(p => !p.front && p.on).map(p => p.def);
+    CFG.frontParts = declared.filter(p =>  p.front && p.on).map(p => p.def);
+    if (window.PetRig.resetGeometry) window.PetRig.resetGeometry();
+    rig = window.PetRig.create({ petIndex: PET });
+    if (base) rig.setBase(base);
+    rig.setDebug(showBones);
+  }
+
+  async function boot() {
+    // Character 2 has its own body art and its own "_2" parts; fall back to
+    // character 1's body the same way the app does.
+    base = PET === 1 ? await loadImage('base_2.png') : null;
+    if (!base) base = await loadImage('base.png');
+    document.getElementById('note').innerHTML = base ? '' :
+      '<div class="warn">No <code>images/base.png</code> — nothing to rig. ' +
+      'Add the body sprite first.</div>';
+
+    // Start the part loads through the SAME resolver the rig uses, so the "_2"
+    // names are the ones requested for character 2. Asking for the bare name
+    // here would preload the wrong files and then report every part missing.
+    if (window.PetParts) declared.forEach(p => window.PetParts.resolve(p.def.img, null, PET));
+    await new Promise(r => setTimeout(r, 500));
+
+    renderPartList();
+    build();
+    requestAnimationFrame(frame);
+  }
+
+  function renderPartList() {
+    const host = document.getElementById('parts');
+    host.innerHTML = '';
+    declared.forEach((p, i) => {
+      const found = window.PetParts && window.PetParts.has(p.def.img, null, PET);
+      const row = document.createElement('label');
+      row.innerHTML =
+        `<input type="checkbox" ${p.on ? 'checked' : ''} ${found ? '' : 'disabled'}>` +
+        `<span class="${found ? '' : 'missing'}"><code>${p.def.img}</code>` +
+        `<div class="tag">${found ? '' : 'not found · '}${p.front ? 'front' : 'behind'} · ` +
+        `${p.def.bone}${p.def.segments ? ' · chain x' + p.def.segments : ''}</div></span>`;
+      row.querySelector('input').addEventListener('change', e => { p.on = e.target.checked; build(); });
+      host.appendChild(row);
+    });
+  }
+
+  const MODES = [
+    ['idle',  'Rest'],
+    ['sway',  'Walk about'],
+    ['throw', 'Throw'],
+    ['pull',  'Pull a hand'],
+  ];
+  const modeHost = document.getElementById('modes');
+  MODES.forEach(([id, label]) => {
+    const b = document.createElement('button');
+    b.textContent = label; b.dataset.mode = id;
+    b.className = id === mode ? 'on' : '';
+    b.onclick = () => {
+      mode = id; t0 = performance.now();
+      [...modeHost.children].forEach(c => c.className = c.dataset.mode === id ? 'on' : '');
+    };
+    modeHost.appendChild(b);
+  });
+
+  document.getElementById('bones').onchange = e => { showBones = e.target.checked; if (rig) rig.setDebug(showBones); };
+  document.getElementById('slow').onchange  = e => { slow = e.target.checked; };
+  document.getElementById('scale').oninput  = e => { scale = e.target.value / 100; };
+  document.getElementById('reload').onclick = () => location.reload();
+
+  let last = 0;
+  function frame(now) {
+    requestAnimationFrame(frame);
+    let dt = last ? Math.min((now - last) / 1000, 0.05) : 1 / 60;
+    last = now;
+    if (slow) dt *= 0.25;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    if (!rig || !rig.ready) return;
+
+    const t = (now - t0) / 1000 * (slow ? 0.25 : 1);
+    const h = CFG.src.h * scale;
+    const cx = cv.width / 2 - CFG.src.w * scale / 2;
+    const floor = 40 + h;
+
+    const S = {
+      petX: cx, petY: 40, originX: 0, originY: 0, scale,
+      floorY: floor, poseK: rig.pose.idle, pin: null, airborne: false,
+    };
+
+    if (mode === 'sway') {
+      S.petX = cx + Math.sin(t * 1.6) * 130;
+    } else if (mode === 'throw') {
+      const p = (t % 2.4) / 2.4;
+      S.petX = cx + Math.sin(t * 2.2) * 150;
+      S.petY = 40 - Math.sin(p * Math.PI) * h * 0.55;
+      S.airborne = p < 0.92;
+      S.poseK = S.airborne ? rig.pose.airborne : rig.pose.idle;
+      if (!S.airborne) S.floorY = floor;
+    } else if (mode === 'pull') {
+      S.poseK = rig.pose.heldLimb;
+      S.pin = { joint: 'handL',
+                x: cx + (CFG.src.w * 0.5 + Math.cos(t * 1.1) * CFG.src.w * 0.42) * scale,
+                y: 40 + (CFG.src.h * 0.55 + Math.sin(t * 1.1) * CFG.src.h * 0.3) * scale };
+    }
+
+    rig.step(dt, S);
+    rig.draw(ctx, S);
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>

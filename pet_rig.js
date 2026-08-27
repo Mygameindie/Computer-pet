@@ -1198,7 +1198,15 @@ window.PetRig = (function () {
   //  window.PetRig is itself the first pet, so an app with one pet never has to
   //  know create() exists — every call it already makes still lands.
   const first = create({ petIndex: 0 });
-  const api = { create, geometry, config: CFG };
+  const api = {
+    create, geometry, config: CFG,
+    // Throw away the derived skeleton so the next create() reads PET_RIG again.
+    // The geometry is cached because it is identical for every pet and costs a
+    // pass over the config to build; that caching is also why editing
+    // PET_RIG.backParts at runtime otherwise appears to do nothing. The parts
+    // preview in tools/ uses this to switch a part off and re-cut.
+    resetGeometry() { for (const k in geomCache) delete geomCache[k]; },
+  };
   for (const k of Object.keys(first)) {
     const d = Object.getOwnPropertyDescriptor(first, k);
     if (d && (d.get || d.set)) Object.defineProperty(api, k, d);
