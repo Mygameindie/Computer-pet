@@ -223,10 +223,24 @@ window.PetRig = (function () {
     // work out which corners a wobble reaches) and by the simulation (to work
     // out how far it wobbles), so they are resolved once, here, and both sides
     // index the same array.
-    const softDefs = (CFG.softTissue || []).map(d => Object.assign({
-      radius: 90, lag: 0.5, stiffness: 110, damping: 9,
-      sag: 0, maxOffset: 8, weight: 1,
-    }, d));
+    //
+    // 'softness' scales the whole list at once — how far every patch travels and
+    // how much of the bone's motion it declines to follow. It is the one knob
+    // for the complaint this is easiest to get wrong in: at 0 the flesh is
+    // welded to the skeleton and the pet is a wooden ragdoll; much past 1 it
+    // stops reading as a body carrying its weight and starts reading as jelly.
+    // The two numbers it scales are the two that decide that, and nothing else
+    // here changes, so the springs keep the bounce they were tuned for.
+    const soft = (CFG.tuning && CFG.tuning.softness != null) ? CFG.tuning.softness : 1;
+    const softDefs = (CFG.softTissue || []).map(d => {
+      const r = Object.assign({
+        radius: 90, lag: 0.5, stiffness: 110, damping: 9,
+        sag: 0, maxOffset: 8, weight: 1,
+      }, d);
+      r.lag *= soft;
+      r.maxOffset *= soft;
+      return r;
+    });
 
     const G = {
       poseName, rest, bones, byId, braces, sides, keepApart, handle, reach,

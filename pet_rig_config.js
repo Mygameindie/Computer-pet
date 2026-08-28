@@ -84,7 +84,7 @@ window.PET_RIG = {
       // them to exactly zero makes a straight arm look welded.
       limits: {
         head:  [ -38,  38],
-        hips:  [ -26,  26],                          // bend at the waist
+        hips:  [ -18,  18],                          // bend at the waist
         armLU: [ -92,  92], armLL: [  -8, 145],
         armRU: [ -92,  92], armRL: [-145,   8],
         legLU: [ -40,  40], legLL: [-140,   3],
@@ -136,7 +136,7 @@ window.PET_RIG = {
       // start straight, so the knees keep their range.
       limits: {
         head:  [ -38,  38],
-        hips:  [ -26,  26],
+        hips:  [ -18,  18],
         armLU: [ -95,  30], armLL: [  -8, 145],
         armRU: [ -30,  95], armRL: [-145,   8],
         legLU: [ -40,  40], legLL: [-140,   3],
@@ -309,7 +309,13 @@ window.PET_RIG = {
   //   bleed      how far past the NEAREST bone another one may still be and
   //              still get a share of a corner, in source pixels. This is what
   //              keeps a hand held near a hip from being tugged at by the thigh
-  //              across the gap between them.
+  //              across the gap between them — and, set too wide, it is the
+  //              thing that makes the pet feel like jelly. At 34 the OUTER EDGE
+  //              of a forearm still took 11% of its movement from the upper
+  //              arm, so the forearm bent along its own length: rubber hose, not
+  //              a limb. Down here that is under 2%, and the crease at the elbow
+  //              itself is untouched, because at the joint the two bones are
+  //              equidistant however sharp the falloff is.
   //   sharpness  how quickly a bone's share falls away with distance. Higher
   //              makes joints crisper and limbs stiffer; lower spreads every
   //              bend out and eventually turns the pet to rubber.
@@ -325,8 +331,8 @@ window.PET_RIG = {
   mesh: {
     enabled: true,
     cell: 30,
-    bleed: 34,
-    sharpness: 3.2,
+    bleed: 24,
+    sharpness: 4.6,
     bones: 3,
     eps: 5,
     seamBleed: 0.5,
@@ -346,30 +352,40 @@ window.PET_RIG = {
   // push the skeleton would feed itself and the pet would shiver on the spot.
   //
   //   lag        0..1, how much of the bone's motion the flesh does NOT follow.
-  //              0 welds it to the bone. 0.7 is soft and heavy. Past ~0.85 it
-  //              looks detached.
+  //              0 welds it to the bone. This is the number that decides jelly
+  //              or body, and it wants to be far smaller than it feels like it
+  //              should: while the pet is being dragged the patch sits pegged
+  //              at its cap the whole time, so what reads on screen is the CAP,
+  //              continuously, not an occasional wobble. A third is plenty for a
+  //              chest; a tenth is right for a thigh.
   //   stiffness  how hard it springs back. Together with 'damping' this sets the
   //              bounce: ~110 and ~8 is about two visible swings and gone.
   //   damping    how fast the bounce dies. Raise it if a patch keeps ringing.
   //   sag        share of gravity it droops under while at rest. Tiny numbers.
   //   maxOffset  hard cap in source pixels. Nothing may travel further than
   //              this, whatever it is hit with — the backstop that keeps a big
-  //              throw from tearing the mesh open.
+  //              throw from tearing the mesh open, and, because a dragged patch
+  //              lives against it, the number you actually see.
   //   weight     scales the whole effect for this patch, for trimming one down
   //              without re-tuning its spring.
   //
   // The list is optional and every entry in it is independent: delete one, or
   // the lot, and the pet simply moves as a skeleton with skin on it.
+  // The damping on each is set against its own stiffness so that every patch
+  // gives one soft bounce and stops — damping / (2 x sqrt(stiffness)) is about
+  // 0.7 for the chest and nearer 1 further down, where flesh does not bounce so
+  // much as arrive late. Change stiffness and change damping with it, or the
+  // patch will either ring like a spring or stop dead.
   softTissue: [
-    { id: 'bustL',  x: 393, y: 700, radius: 70, lag: 0.72, stiffness: 105, damping:  7.5, sag: 0.012, maxOffset: 9 },
-    { id: 'bustR',  x: 457, y: 700, radius: 70, lag: 0.72, stiffness: 105, damping:  7.5, sag: 0.012, maxOffset: 9 },
-    { id: 'belly',  x: 425, y: 790, radius: 90, lag: 0.40, stiffness: 150, damping: 11.0, sag: 0.006, maxOffset: 5 },
-    { id: 'hipL',   x: 396, y: 880, radius: 78, lag: 0.34, stiffness: 165, damping: 12.0, maxOffset: 4.5 },
-    { id: 'hipR',   x: 454, y: 880, radius: 78, lag: 0.34, stiffness: 165, damping: 12.0, maxOffset: 4.5 },
-    { id: 'thighL', x: 385, y: 915, radius: 62, lag: 0.30, stiffness: 175, damping: 12.0, maxOffset: 4 },
-    { id: 'thighR', x: 465, y: 915, radius: 62, lag: 0.30, stiffness: 175, damping: 12.0, maxOffset: 4 },
-    { id: 'armL',   x: 317, y: 695, radius: 46, lag: 0.26, stiffness: 190, damping: 13.0, maxOffset: 3 },
-    { id: 'armR',   x: 533, y: 695, radius: 46, lag: 0.26, stiffness: 190, damping: 13.0, maxOffset: 3 },
+    { id: 'bustL',  x: 393, y: 700, radius: 70, lag: 0.34, stiffness: 190, damping: 20, sag: 0.010, maxOffset: 3.5 },
+    { id: 'bustR',  x: 457, y: 700, radius: 70, lag: 0.34, stiffness: 190, damping: 20, sag: 0.010, maxOffset: 3.5 },
+    { id: 'belly',  x: 425, y: 790, radius: 90, lag: 0.16, stiffness: 240, damping: 28, sag: 0.005, maxOffset: 2 },
+    { id: 'hipL',   x: 396, y: 880, radius: 78, lag: 0.12, stiffness: 280, damping: 32, maxOffset: 1.6 },
+    { id: 'hipR',   x: 454, y: 880, radius: 78, lag: 0.12, stiffness: 280, damping: 32, maxOffset: 1.6 },
+    { id: 'thighL', x: 385, y: 915, radius: 62, lag: 0.11, stiffness: 290, damping: 33, maxOffset: 1.5 },
+    { id: 'thighR', x: 465, y: 915, radius: 62, lag: 0.11, stiffness: 290, damping: 33, maxOffset: 1.5 },
+    { id: 'armL',   x: 317, y: 695, radius: 46, lag: 0.09, stiffness: 320, damping: 36, maxOffset: 1.1 },
+    { id: 'armR',   x: 533, y: 695, radius: 46, lag: 0.09, stiffness: 320, damping: 36, maxOffset: 1.1 },
   ],
 
   // ---- Feel ---------------------------------------------------------------
@@ -408,14 +424,27 @@ window.PET_RIG = {
     // far side of the cushion — so the bone-length and brace passes that run
     // afterwards get a say and the limb eases in. Past the cushion it is
     // absolute: past the cushion a joint is not stiff, it is broken.
-    limitSoft: 12,
-    limitFloor: 0.35,
+    // 12 and 0.35 were too generous: a quarter-turn of mush at every joint,
+    // and it is the joints hitting their stops that make a ragdoll read as a
+    // skeleton rather than a rope. Six degrees is still not a wall — it is the
+    // last of the travel going soft — but the limb arrives.
+    limitSoft: 6,
+    limitFloor: 0.6,
 
     // Extra downward kick given to the soft tissue on a landing, in source
     // px/s, scaled by how hard the landing was and by how loose each patch is.
     // The squash would shake the flesh on its own — but it arrives over the
     // next few frames, and an impact does not.
-    landJolt: 60,
+    landJolt: 35,
+
+    // ---- The one knob for "too soft" / "not soft enough" ---------------
+    // Scales every softTissue entry's lag and maxOffset together, so the whole
+    // body firms up or loosens without re-tuning nine springs. 1 is the list as
+    // written below. Drop to 0.5 for a stiffer, more wooden ragdoll; 0 welds the
+    // flesh to the bone and turns the whole feature off. Going much above 1 is
+    // where it stops looking like a body carrying its own weight and starts
+    // looking like jelly.
+    softness: 1,
 
     pose: {
       idle:      0.42,      // standing: holds the pose, sways gently
