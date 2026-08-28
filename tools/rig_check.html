@@ -54,6 +54,7 @@
 <div class="bar">
   <label><input type="checkbox" id="mesh" checked> skinned grid</label>
   <label><input type="checkbox" id="wire"> show the grid + soft tissue</label>
+  <label><input type="checkbox" id="trace"> lay the drawing over the rig</label>
   <label>grid spacing <input type="range" id="cell" min="18" max="64" value="30" step="2">
     <span id="cellv">30</span></label>
   <button id="stress">Run the stress test</button>
@@ -82,6 +83,14 @@
     status.textContent = 'images/base.png did not load';
   };
   base.src = petIndex ? 'base_2.png' : 'base.png';
+
+  // The hand-drawn bones the rig was traced from. Optional: if it is not there,
+  // the toggle simply has nothing to draw.
+  const trace = new Image();
+  let traceOk = false;
+  trace.onload = () => { traceOk = true; render(); };
+  trace.onerror = () => { traceOk = false; };
+  trace.src = 'tools/skeleton.png';
 
   // A fresh rig each time, so a setting change is a clean rebuild rather than
   // a half-updated one.
@@ -135,6 +144,19 @@
       if (pose.name === 'standing') { rig.placeRest(S); rig.snap(); }
       for (let i = 0; i < pose.frames; i++) { pose.run(rig, S, i); rig.step(1 / 60, S); }
       rig.draw(ctx, S);
+
+      // The drawing, laid straight over the pet at rest. This is the check that
+      // matters after a joint moves: the rig's idea of where a bone is, and
+      // yours, in the same picture. If a red bone below sits off the black
+      // stroke it was traced from, the number is wrong — no amount of throwing
+      // the pet about will tell you that as quickly.
+      if (document.getElementById('trace').checked && traceOk && pose.name === 'standing') {
+        ctx.save();
+        ctx.globalAlpha = 0.55;
+        ctx.drawImage(trace, S.petX, S.petY, rig.srcW * S.scale, rig.srcH * S.scale);
+        ctx.restore();
+      }
+
       const fig = document.createElement('figure');
       fig.appendChild(cv);
       const cap = document.createElement('figcaption');
@@ -226,7 +248,7 @@
   }
 
   base.onload = () => { preloadParts().then(render); };
-  for (const id of ['mesh', 'wire']) document.getElementById(id).onchange = render;
+  for (const id of ['mesh', 'wire', 'trace']) document.getElementById(id).onchange = render;
   document.getElementById('cell').oninput = (e) => {
     document.getElementById('cellv').textContent = e.target.value;
     render();

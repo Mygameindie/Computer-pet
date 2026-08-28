@@ -74,6 +74,40 @@ with elbows and knees that only fold one way; and the knees and ankles are kept
 on their own sides of each other, so a hard landing cannot leave the legs
 crossed for the rest of the session.
 
+## Handing the rig a drawing
+
+Drawing the bones works well and it is how the current skeleton was made. Two
+of these are about being readable; the last one is the one that actually goes
+wrong.
+
+**Same canvas, lined up.** 851 x 1134, transparent, sitting exactly over the
+art. Every stroke is then already in the coordinates the config uses and nothing
+has to be scaled or guessed.
+
+**Black is a bone.** One stroke from one joint to the next. Strokes may touch or
+cross — the spine and the shoulder bar crossing is fine. Bones are measured off
+the stroke's two ends, so a stroke that stops short of the joint moves the joint.
+Where two bones meet in line with each other — a shoulder, elbow and hand all on
+one straight arm — there is no bend to find, so the middle joint lands halfway.
+Put a visible kink or a dot where you want it instead and that is used.
+
+**Draw it on the thing it belongs to.** The wing bones came in drawn on top of
+the wings, and there was nothing to work out: two strokes, two wings, one pivot
+each. The same two strokes on an empty canvas would have been two lines in
+space.
+
+**A drawing says WHERE. It cannot say WHAT.** This is the one that costs time. A
+stroke by the hip is a thigh bone, or a tail, or the way something should swing,
+or a note to look at that spot — and the drawing is identical in all four cases.
+So either use a second colour and say once what it means, or put the answer in
+the filename (`skeleton_wings.png`, `skeleton_tail.png`), or just write one word
+in the message. One word beats any amount of redrawing.
+
+Then tick **lay the drawing over the rig** in `tools/rig_check.html` — it puts
+`tools/skeleton.png` straight over the pet standing at rest. A red bone sitting
+off the black stroke it was traced from is a wrong number, and it shows up there
+immediately.
+
 ## Checking the rig
 
 Open `tools/rig_check.html` **through a local server** — a `file://` page cannot
