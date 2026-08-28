@@ -294,13 +294,20 @@ window.PET_RIG = {
   // what the body was covering, and a drawn one comes out whole.
   backParts: [
 
-    // Anchored where the arrow in tools/skeleton_tail.png starts — just left of
-    // the base of the spine — and the arrow points where the art should lie:
-    // down and out to about (301, 898), roughly 120px of tail. Only the anchor
-    // is a number here; the DIRECTION is read off tail.png itself, from the
-    // pivot to the farthest opaque pixel, so draw the tail lying that way and
-    // the chain follows it with nothing else to set.
-    { id: 'tail', img: 'tail.png', bone: 'hips', anchor: { x: 408, y: 842 },
+    // Character 2's tail — the devil's. tools/skeleton_tail.png is an arrow
+    // POINTING AT IT, not a bone drawn along it: the arrowhead lands on
+    // (301, 898), which is the tip of images/tail_2.png to within a pixel, and
+    // the shaft comes in from empty space outside the artwork. So it says which
+    // part is being talked about, and nothing about where the part hangs.
+    //
+    // Where it hangs was already measured off that art and is left alone:
+    // (370, 867) sits exactly on the tail's root pixel. Neither is the DIRECTION
+    // a number here — a chain part reads its axis off its own PNG, from the
+    // pivot to the farthest opaque pixel, which for this art comes out at 155
+    // degrees, down and out to the left.
+    //
+    // Character 1 has no tail.png, so for her this entry simply does not exist.
+    { id: 'tail', img: 'tail.png', bone: 'hips', anchor: { x: 370, y: 867 },
       z: 45, segments: 3, stiffness: 0.30 },
 
     { id: 'ponytail', img: 'ponytail.png', bone: 'head', anchor: { x: 425, y: 430 },

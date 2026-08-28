@@ -65,6 +65,11 @@
 <table id="report"></table>
 
 <script src="asset_path_fix.js"></script>
+<!-- Defines window.PetParts, which is how the rig asks for a part by name and
+     gets character 2's "_2" version of it. Without this the page falls back to
+     the bare filename and character 2 is drawn with character 1's parts, or
+     with none — which is exactly the sort of thing this page exists to catch. -->
+<script src="pet_back_layer.js"></script>
 <script src="pet_rig_config.js"></script>
 <script src="pet_rig.js"></script>
 <script>

@@ -23,7 +23,7 @@ same way a piece of clothing lines up.
 |---|---|---|
 | `images/wings.png` | torso | **two** pieces — the config splits the one PNG down the gap between the wings so each beats on its own pivot |
 | `images/cape.png` | torso | one piece, trails the body |
-| `images/tail.png` | hips | chain — whips and settles. `tools/skeleton_tail.png` shows where it hangs and which way to draw it |
+| `images/tail.png` | hips | chain — whips and settles. Only character 2 has one here (`tail_2.png`); `tools/skeleton_tail.png` is an arrow pointing it out |
 | `images/ponytail.png` | head | chain — whips and settles |
 | `images/hair_back.png` | head | one piece, trails the head |
 | `images/hair_front.png` | head | drawn **over** the body and its clothes |
