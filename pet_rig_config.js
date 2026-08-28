@@ -49,28 +49,45 @@ window.PET_RIG = {
   poses: {
 
     // ---------------------------------------------------------------------
-    // NATURAL — measured off the base.png that ships with this app.
-    // Arms hang out and down at about 23° below horizontal; legs are straight.
+    // NATURAL — traced off tools/skeleton.png, the bones drawn by hand over
+    // the character. Arms out and down at 34° below horizontal; legs straight.
+    //
+    // Five lines were drawn — spine, two arms, two legs — and the seventeen
+    // joints come off them like this, which is worth knowing if you redraw it:
+    //
+    //   neck / pelvis     the two ends of the spine line
+    //   chest             on the spine, level with the shoulders (the sternum)
+    //   waist             on the spine, 62% of the way down
+    //   shoulder / hand   the two ends of an arm line
+    //   hip / foot        the two ends of a leg line
+    //   elbow / knee      halfway along, because a straight line does not say
+    //                     where they are. Mark them and they will be used.
+    //   headTop           not drawn — placed so the head bone runs up the
+    //                     middle of the head. It is the one number here that
+    //                     came off the artwork rather than off the drawing.
+    //
+    // The drawing came out symmetric to within a pixel: the four arm bones are
+    // 91.3–91.8px and all four leg bones are 90.7px.
     // ---------------------------------------------------------------------
     natural: {
       joints: {
-        headTop:    { x:  425, y:  392 },
-        neck:       { x:  425, y:  606 },
-        chest:      { x:  425, y:  648 },
-        waist:      { x:  425, y:  766 },
-        pelvis:     { x:  425, y:  862 },
-        shoulderL:  { x:  362, y:  676 },
-        shoulderR:  { x:  488, y:  676 },
-        elbowL:     { x:  273, y:  714 },
-        elbowR:     { x:  577, y:  714 },
-        handL:      { x:  186, y:  752 },
-        handR:      { x:  664, y:  752 },
-        hipL:       { x:  397, y:  866 },
-        hipR:       { x:  453, y:  866 },
-        kneeL:      { x:  382, y:  953 },
-        kneeR:      { x:  468, y:  953 },
-        footL:      { x:  360, y: 1040 },
-        footR:      { x:  490, y: 1040 },
+        headTop:    { x:  424, y:  392 },
+        neck:       { x:  423, y:  602 },
+        chest:      { x:  423, y:  626 },
+        waist:      { x:  425, y:  762 },
+        pelvis:     { x:  426, y:  860 },
+        shoulderL:  { x:  372, y:  627 },
+        shoulderR:  { x:  479, y:  625 },
+        elbowL:     { x:  296, y:  678 },
+        elbowR:     { x:  554, y:  678 },
+        handL:      { x:  221, y:  730 },
+        handR:      { x:  629, y:  730 },
+        hipL:       { x:  394, y:  845 },
+        hipR:       { x:  456, y:  845 },
+        kneeL:      { x:  383, y:  935 },
+        kneeR:      { x:  467, y:  935 },
+        footL:      { x:  372, y: 1025 },
+        footR:      { x:  478, y: 1025 },
       },
 
       // [min, max] degrees each bone may turn RELATIVE TO ITS REST ANGLE, and
@@ -103,31 +120,32 @@ window.PET_RIG = {
 
     // ---------------------------------------------------------------------
     // T-POSE — for art drawn with the arms straight out and the legs straight
-    // down. Same character, same bone lengths (96.8px upper arm, 94.9px
-    // forearm, 88.3px thigh, 89.7px shin), swung onto the axes.
+    // down. Same character, same bone lengths as the drawn skeleton above
+    // (91.5px upper arm, 91.3px forearm, 90.7px thigh and shin), swung onto
+    // the axes.
     //
     // These are a starting point, not a measurement: nobody has drawn T-posed
     // art for this character yet. Open Ctrl+Shift+B and drag them onto yours.
     // ---------------------------------------------------------------------
     tpose: {
       joints: {
-        headTop:    { x:  425, y:  392 },
-        neck:       { x:  425, y:  606 },
-        chest:      { x:  425, y:  648 },
-        waist:      { x:  425, y:  766 },
-        pelvis:     { x:  425, y:  862 },
-        shoulderL:  { x:  362, y:  676 },
-        shoulderR:  { x:  488, y:  676 },
-        elbowL:     { x:  265, y:  676 },
-        elbowR:     { x:  585, y:  676 },
-        handL:      { x:  170, y:  676 },
-        handR:      { x:  680, y:  676 },
-        hipL:       { x:  397, y:  866 },
-        hipR:       { x:  453, y:  866 },
-        kneeL:      { x:  397, y:  954 },
-        kneeR:      { x:  453, y:  954 },
-        footL:      { x:  397, y: 1044 },
-        footR:      { x:  453, y: 1044 },
+        headTop:    { x:  424, y:  392 },
+        neck:       { x:  423, y:  602 },
+        chest:      { x:  423, y:  626 },
+        waist:      { x:  425, y:  762 },
+        pelvis:     { x:  426, y:  860 },
+        shoulderL:  { x:  372, y:  627 },
+        shoulderR:  { x:  479, y:  625 },
+        elbowL:     { x:  280, y:  627 },
+        elbowR:     { x:  571, y:  625 },
+        handL:      { x:  189, y:  627 },
+        handR:      { x:  662, y:  625 },
+        hipL:       { x:  394, y:  845 },
+        hipR:       { x:  456, y:  845 },
+        kneeL:      { x:  394, y:  936 },
+        kneeR:      { x:  456, y:  936 },
+        footL:      { x:  394, y: 1026 },
+        footR:      { x:  456, y: 1026 },
       },
 
       // Measured from horizontal now, so they are not the natural pose's
@@ -376,16 +394,21 @@ window.PET_RIG = {
   // 0.7 for the chest and nearer 1 further down, where flesh does not bounce so
   // much as arrive late. Change stiffness and change damping with it, or the
   // patch will either ring like a spring or stop dead.
+  // Placed on the drawn skeleton: the bust between chest and waist, the belly
+  // between waist and pelvis, and the thighs and upper arms halfway along their
+  // bones. The radii are cut to the body — this character's torso is only about
+  // 110px wide, so a patch reaching 70px from the spine was covering the arms
+  // as well and moving them with the chest.
   softTissue: [
-    { id: 'bustL',  x: 393, y: 700, radius: 70, lag: 0.34, stiffness: 190, damping: 20, sag: 0.010, maxOffset: 3.5 },
-    { id: 'bustR',  x: 457, y: 700, radius: 70, lag: 0.34, stiffness: 190, damping: 20, sag: 0.010, maxOffset: 3.5 },
-    { id: 'belly',  x: 425, y: 790, radius: 90, lag: 0.16, stiffness: 240, damping: 28, sag: 0.005, maxOffset: 2 },
-    { id: 'hipL',   x: 396, y: 880, radius: 78, lag: 0.12, stiffness: 280, damping: 32, maxOffset: 1.6 },
-    { id: 'hipR',   x: 454, y: 880, radius: 78, lag: 0.12, stiffness: 280, damping: 32, maxOffset: 1.6 },
-    { id: 'thighL', x: 385, y: 915, radius: 62, lag: 0.11, stiffness: 290, damping: 33, maxOffset: 1.5 },
-    { id: 'thighR', x: 465, y: 915, radius: 62, lag: 0.11, stiffness: 290, damping: 33, maxOffset: 1.5 },
-    { id: 'armL',   x: 317, y: 695, radius: 46, lag: 0.09, stiffness: 320, damping: 36, maxOffset: 1.1 },
-    { id: 'armR',   x: 533, y: 695, radius: 46, lag: 0.09, stiffness: 320, damping: 36, maxOffset: 1.1 },
+    { id: 'bustL',  x: 395, y: 682, radius: 58, lag: 0.34, stiffness: 190, damping: 20, sag: 0.010, maxOffset: 3.5 },
+    { id: 'bustR',  x: 457, y: 682, radius: 58, lag: 0.34, stiffness: 190, damping: 20, sag: 0.010, maxOffset: 3.5 },
+    { id: 'belly',  x: 425, y: 805, radius: 72, lag: 0.16, stiffness: 240, damping: 28, sag: 0.005, maxOffset: 2 },
+    { id: 'hipL',   x: 396, y: 872, radius: 62, lag: 0.12, stiffness: 280, damping: 32, maxOffset: 1.6 },
+    { id: 'hipR',   x: 454, y: 872, radius: 62, lag: 0.12, stiffness: 280, damping: 32, maxOffset: 1.6 },
+    { id: 'thighL', x: 389, y: 890, radius: 46, lag: 0.11, stiffness: 290, damping: 33, maxOffset: 1.5 },
+    { id: 'thighR', x: 461, y: 890, radius: 46, lag: 0.11, stiffness: 290, damping: 33, maxOffset: 1.5 },
+    { id: 'armL',   x: 334, y: 652, radius: 40, lag: 0.09, stiffness: 320, damping: 36, maxOffset: 1.1 },
+    { id: 'armR',   x: 516, y: 651, radius: 40, lag: 0.09, stiffness: 320, damping: 36, maxOffset: 1.1 },
   ],
 
   // ---- Feel ---------------------------------------------------------------

@@ -1,11 +1,19 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>Rig check — skin, joints and soft tissue</title>
+<!-- Everything below resolves from the repo root, not from tools/, so that
+     asset_path_fix.js turns a bare "wings.png" into "images/wings.png" exactly
+     as it does in the app. Without this the page draws the body but silently
+     none of the wings, tail or hair, which is not what the app looks like. -->
+<base href="../">
 <!--
   Open this in a browser from a local server (a file:// page cannot read the
   sprite back, and reading it back is how the rig cuts the pet up):
 
       python3 -m http.server        then  http://localhost:8000/tools/rig_check.html
+
+  Run it from the REPO ROOT, not from tools/ — the page reaches back up for
+  images/ and for the rig's own scripts.
 
   It changes nothing on disk. Add ?pet=1 to check character 2.
 
@@ -55,8 +63,9 @@
 <div class="wrap" id="shots"></div>
 <table id="report"></table>
 
-<script src="../pet_rig_config.js"></script>
-<script src="../pet_rig.js"></script>
+<script src="asset_path_fix.js"></script>
+<script src="pet_rig_config.js"></script>
+<script src="pet_rig.js"></script>
 <script>
 (() => {
   const petIndex = /pet=1/.test(location.search) ? 1 : 0;
@@ -69,10 +78,10 @@
   // on the app — try the one and fall back to the other.
   const base = new Image();
   base.onerror = () => {
-    if (base.src.indexOf('base_2') >= 0) { base.src = '../images/base.png'; return; }
+    if (base.src.indexOf('base_2') >= 0) { base.src = 'base.png'; return; }
     status.textContent = 'images/base.png did not load';
   };
-  base.src = '../images/' + (petIndex ? 'base_2.png' : 'base.png');
+  base.src = petIndex ? 'base_2.png' : 'base.png';
 
   // A fresh rig each time, so a setting change is a clean rebuild rather than
   // a half-updated one.
@@ -203,7 +212,20 @@
     }, 20);
   }
 
-  base.onload = render;
+  // The wings, tail and hair are separate PNGs and they land AFTER the base
+  // does. The app does not care — it redraws every frame and they appear when
+  // they appear — but this page draws each pose once, so without waiting for
+  // them it quietly shows a pet with no wings and calls it the truth.
+  function preloadParts() {
+    const defs = (window.PET_RIG.backParts || []).concat(window.PET_RIG.frontParts || []);
+    return Promise.all(defs.filter(d => d.img).map(d => new Promise(done => {
+      const im = new Image();
+      im.onload = im.onerror = () => done();   // a missing part is not an error
+      im.src = petIndex ? d.img.replace(/\.png$/, '_2.png') : d.img;
+    })));
+  }
+
+  base.onload = () => { preloadParts().then(render); };
   for (const id of ['mesh', 'wire']) document.getElementById(id).onchange = render;
   document.getElementById('cell').oninput = (e) => {
     document.getElementById('cellv').textContent = e.target.value;
