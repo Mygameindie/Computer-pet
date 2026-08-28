@@ -294,7 +294,13 @@ window.PET_RIG = {
   // what the body was covering, and a drawn one comes out whole.
   backParts: [
 
-    { id: 'tail', img: 'tail.png', bone: 'hips', anchor: { x: 370, y: 867 },
+    // Anchored where the arrow in tools/skeleton_tail.png starts — just left of
+    // the base of the spine — and the arrow points where the art should lie:
+    // down and out to about (301, 898), roughly 120px of tail. Only the anchor
+    // is a number here; the DIRECTION is read off tail.png itself, from the
+    // pivot to the farthest opaque pixel, so draw the tail lying that way and
+    // the chain follows it with nothing else to set.
+    { id: 'tail', img: 'tail.png', bone: 'hips', anchor: { x: 408, y: 842 },
       z: 45, segments: 3, stiffness: 0.30 },
 
     { id: 'ponytail', img: 'ponytail.png', bone: 'head', anchor: { x: 425, y: 430 },
