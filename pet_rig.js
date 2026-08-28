@@ -785,12 +785,20 @@ window.PetRig = (function () {
       }
 
       if (img) {
-        // One rigid piece: the whole 851x1134 canvas, drawn as it was authored.
+        // One rigid piece, drawn as it was authored — or one COLUMN RANGE of
+        // it. A pair of wings is a single PNG but two bones: each needs its own
+        // pivot or they can only ever swing as one plank. clipX takes the half
+        // this part is, so both entries share the artwork and nothing has to be
+        // exported twice. Cut it through the gap between the two halves and no
+        // pixel is lost.
+        const x0 = def.clipX ? clamp(def.clipX[0] | 0, 0, SRC.w) : 0;
+        const x1 = def.clipX ? clamp(def.clipX[1] | 0, 0, SRC.w) : SRC.w;
+        const cw = Math.max(1, x1 - x0);
         const c = document.createElement('canvas');
-        c.width = SRC.w; c.height = SRC.h;
-        c.getContext('2d').drawImage(img, 0, 0, SRC.w, SRC.h);
+        c.width = cw; c.height = SRC.h;
+        c.getContext('2d').drawImage(img, -x0, 0, SRC.w, SRC.h);
         slot.canvas = c;
-        slot.rect = def.rect || [0, 0, SRC.w, SRC.h];
+        slot.rect = def.clipX ? [x0, 0, cw, SRC.h] : (def.rect || [0, 0, SRC.w, SRC.h]);
         parts[p.id] = slot;
         return;
       }
@@ -1459,7 +1467,11 @@ window.PetRig = (function () {
       const ang = Math.atan2(B.y - A.y, B.x - A.x) - b.ang;
       let spin = slot.lag || 0;
       if (slot.def.flap && slot.flapT > 0.01) {
-        spin += Math.sin(slot.flapPhase || 0) * 0.30 * slot.flapT;
+        // 'flip' mirrors the FLAP and only the flap. Both halves of a pair have
+        // to trail the body the same way — that is the body turning under them —
+        // but a flap that also went the same way would have one wing rising
+        // while the other fell. A flap is symmetric; a trail is not.
+        spin += Math.sin(slot.flapPhase || 0) * 0.30 * slot.flapT * (slot.def.flip ? -1 : 1);
       }
       ctx.save();
       ctx.translate(A.x + ox, A.y + oy);

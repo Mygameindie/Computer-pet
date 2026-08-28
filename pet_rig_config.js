@@ -52,40 +52,50 @@ window.PET_RIG = {
     // NATURAL — traced off tools/skeleton.png, the bones drawn by hand over
     // the character. Arms out and down at 34° below horizontal; legs straight.
     //
-    // Five lines were drawn — spine, two arms, two legs — and the seventeen
-    // joints come off them like this, which is worth knowing if you redraw it:
+    // The drawing has a shoulder bar, a spine, two arms, two legs and a little
+    // V at the hips, and the seventeen joints come off them like this — worth
+    // knowing if you redraw it:
     //
     //   neck / pelvis     the two ends of the spine line
-    //   chest             on the spine, level with the shoulders (the sternum)
+    //   chest             the middle of the shoulder bar
+    //   shoulderL/R       the two ends of the ARM strokes, not of the bar. The
+    //                     bar sits 24px higher, and the two agree on x to
+    //                     within a pixel — so the bar is read as the collarbone
+    //                     (it gives chest, and the width the shoulders brace
+    //                     to) and the arm strokes give the pivots, because a
+    //                     shoulder pivots where the arm leaves the body. That
+    //                     is the one judgement call in this list.
     //   waist             on the spine, 62% of the way down
-    //   shoulder / hand   the two ends of an arm line
-    //   hip / foot        the two ends of a leg line
-    //   elbow / knee      halfway along, because a straight line does not say
-    //                     where they are. Mark them and they will be used.
+    //   hand / foot       the far ends of the arm and leg strokes
+    //   hipL/R            the outer ends of the V under the pelvis
+    //   elbow / knee      halfway along. The arm strokes are straight to within
+    //                     half a pixel over their whole length and the legs to
+    //                     within a third, so there is no bend to read. Draw one
+    //                     and it will be used instead.
     //   headTop           not drawn — placed so the head bone runs up the
-    //                     middle of the head. It is the one number here that
-    //                     came off the artwork rather than off the drawing.
+    //                     middle of the head. The one number here that came off
+    //                     the artwork rather than off the drawing.
     //
-    // The drawing came out symmetric to within a pixel: the four arm bones are
-    // 91.3–91.8px and all four leg bones are 90.7px.
+    // Symmetric to within a pixel: the arm bones come out 88.5–89.0px and every
+    // leg bone 89.7px.
     // ---------------------------------------------------------------------
     natural: {
       joints: {
         headTop:    { x:  424, y:  392 },
-        neck:       { x:  423, y:  602 },
-        chest:      { x:  423, y:  626 },
-        waist:      { x:  425, y:  762 },
-        pelvis:     { x:  426, y:  860 },
-        shoulderL:  { x:  372, y:  627 },
-        shoulderR:  { x:  479, y:  625 },
-        elbowL:     { x:  296, y:  678 },
-        elbowR:     { x:  554, y:  678 },
+        neck:       { x:  425, y:  600 },
+        chest:      { x:  425, y:  605 },
+        waist:      { x:  425, y:  764 },
+        pelvis:     { x:  425, y:  864 },
+        shoulderL:  { x:  367, y:  629 },
+        shoulderR:  { x:  483, y:  629 },
+        elbowL:     { x:  294, y:  680 },
+        elbowR:     { x:  556, y:  680 },
         handL:      { x:  221, y:  730 },
         handR:      { x:  629, y:  730 },
-        hipL:       { x:  394, y:  845 },
-        hipR:       { x:  456, y:  845 },
-        kneeL:      { x:  383, y:  935 },
-        kneeR:      { x:  467, y:  935 },
+        hipL:       { x:  394, y:  848 },
+        hipR:       { x:  456, y:  848 },
+        kneeL:      { x:  383, y:  937 },
+        kneeR:      { x:  467, y:  937 },
         footL:      { x:  372, y: 1025 },
         footR:      { x:  478, y: 1025 },
       },
@@ -121,7 +131,7 @@ window.PET_RIG = {
     // ---------------------------------------------------------------------
     // T-POSE — for art drawn with the arms straight out and the legs straight
     // down. Same character, same bone lengths as the drawn skeleton above
-    // (91.5px upper arm, 91.3px forearm, 90.7px thigh and shin), swung onto
+    // (89.0px upper arm, 88.5px forearm, 89.7px thigh and shin), swung onto
     // the axes.
     //
     // These are a starting point, not a measurement: nobody has drawn T-posed
@@ -130,22 +140,22 @@ window.PET_RIG = {
     tpose: {
       joints: {
         headTop:    { x:  424, y:  392 },
-        neck:       { x:  423, y:  602 },
-        chest:      { x:  423, y:  626 },
-        waist:      { x:  425, y:  762 },
-        pelvis:     { x:  426, y:  860 },
-        shoulderL:  { x:  372, y:  627 },
-        shoulderR:  { x:  479, y:  625 },
-        elbowL:     { x:  280, y:  627 },
-        elbowR:     { x:  571, y:  625 },
-        handL:      { x:  189, y:  627 },
-        handR:      { x:  662, y:  625 },
-        hipL:       { x:  394, y:  845 },
-        hipR:       { x:  456, y:  845 },
-        kneeL:      { x:  394, y:  936 },
-        kneeR:      { x:  456, y:  936 },
-        footL:      { x:  394, y: 1026 },
-        footR:      { x:  456, y: 1026 },
+        neck:       { x:  425, y:  600 },
+        chest:      { x:  425, y:  605 },
+        waist:      { x:  425, y:  764 },
+        pelvis:     { x:  425, y:  864 },
+        shoulderL:  { x:  367, y:  629 },
+        shoulderR:  { x:  483, y:  629 },
+        elbowL:     { x:  278, y:  629 },
+        elbowR:     { x:  572, y:  629 },
+        handL:      { x:  190, y:  629 },
+        handR:      { x:  660, y:  629 },
+        hipL:       { x:  394, y:  848 },
+        hipR:       { x:  456, y:  848 },
+        kneeL:      { x:  394, y:  938 },
+        kneeR:      { x:  456, y:  938 },
+        footL:      { x:  394, y: 1028 },
+        footR:      { x:  456, y: 1028 },
       },
 
       // Measured from horizontal now, so they are not the natural pose's
@@ -293,8 +303,17 @@ window.PET_RIG = {
     { id: 'hairBack', img: 'hair_back.png', bone: 'head', anchor: { x: 425, y: 420 },
       z: 55, lag: 0.14, maxLag: 10 },
 
-    { id: 'wings', img: 'wings.png', bone: 'torso', anchor: { x: 425, y: 648 },
-      z: 40, lag: 0.22, maxLag: 16, flap: true },
+    // TWO wings, not one. They are a single PNG — clipX takes the half each
+    // entry is, cut through the 105px gap the artwork already has between
+    // them, so nothing is lost and nothing has to be re-exported. Each gets the
+    // pivot drawn for it in tools/skeleton_wings.png, just off the spine, which
+    // is what lets them beat instead of tilting together like a signboard.
+    // 'flip' mirrors the far one's flap; both still trail the body the same way.
+    { id: 'wingL', img: 'wings.png', clipX: [0, 425], bone: 'torso',
+      anchor: { x: 409, y: 676 }, z: 40, lag: 0.22, maxLag: 16, flap: true },
+
+    { id: 'wingR', img: 'wings.png', clipX: [425, 851], bone: 'torso',
+      anchor: { x: 440, y: 675 }, z: 40, lag: 0.22, maxLag: 16, flap: true, flip: true },
 
   ],
 
@@ -401,14 +420,14 @@ window.PET_RIG = {
   // as well and moving them with the chest.
   softTissue: [
     { id: 'bustL',  x: 395, y: 682, radius: 58, lag: 0.34, stiffness: 190, damping: 20, sag: 0.010, maxOffset: 3.5 },
-    { id: 'bustR',  x: 457, y: 682, radius: 58, lag: 0.34, stiffness: 190, damping: 20, sag: 0.010, maxOffset: 3.5 },
-    { id: 'belly',  x: 425, y: 805, radius: 72, lag: 0.16, stiffness: 240, damping: 28, sag: 0.005, maxOffset: 2 },
-    { id: 'hipL',   x: 396, y: 872, radius: 62, lag: 0.12, stiffness: 280, damping: 32, maxOffset: 1.6 },
-    { id: 'hipR',   x: 454, y: 872, radius: 62, lag: 0.12, stiffness: 280, damping: 32, maxOffset: 1.6 },
-    { id: 'thighL', x: 389, y: 890, radius: 46, lag: 0.11, stiffness: 290, damping: 33, maxOffset: 1.5 },
-    { id: 'thighR', x: 461, y: 890, radius: 46, lag: 0.11, stiffness: 290, damping: 33, maxOffset: 1.5 },
-    { id: 'armL',   x: 334, y: 652, radius: 40, lag: 0.09, stiffness: 320, damping: 36, maxOffset: 1.1 },
-    { id: 'armR',   x: 516, y: 651, radius: 40, lag: 0.09, stiffness: 320, damping: 36, maxOffset: 1.1 },
+    { id: 'bustR',  x: 455, y: 682, radius: 58, lag: 0.34, stiffness: 190, damping: 20, sag: 0.010, maxOffset: 3.5 },
+    { id: 'belly',  x: 425, y: 810, radius: 72, lag: 0.16, stiffness: 240, damping: 28, sag: 0.005, maxOffset: 2 },
+    { id: 'hipL',   x: 395, y: 874, radius: 62, lag: 0.12, stiffness: 280, damping: 32, maxOffset: 1.6 },
+    { id: 'hipR',   x: 455, y: 874, radius: 62, lag: 0.12, stiffness: 280, damping: 32, maxOffset: 1.6 },
+    { id: 'thighL', x: 389, y: 893, radius: 46, lag: 0.11, stiffness: 290, damping: 33, maxOffset: 1.5 },
+    { id: 'thighR', x: 461, y: 893, radius: 46, lag: 0.11, stiffness: 290, damping: 33, maxOffset: 1.5 },
+    { id: 'armL',   x: 331, y: 655, radius: 40, lag: 0.09, stiffness: 320, damping: 36, maxOffset: 1.1 },
+    { id: 'armR',   x: 519, y: 655, radius: 40, lag: 0.09, stiffness: 320, damping: 36, maxOffset: 1.1 },
   ],
 
   // ---- Feel ---------------------------------------------------------------

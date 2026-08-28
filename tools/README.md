@@ -21,12 +21,17 @@ same way a piece of clothing lines up.
 
 | file | hangs off | how it moves |
 |---|---|---|
-| `images/wings.png` | torso | one piece, trails the body, flaps in the air |
+| `images/wings.png` | torso | **two** pieces — the config splits the one PNG down the gap between the wings so each beats on its own pivot |
 | `images/cape.png` | torso | one piece, trails the body |
 | `images/tail.png` | pelvis | chain — whips and settles |
 | `images/ponytail.png` | head | chain — whips and settles |
 | `images/hair_back.png` | head | one piece, trails the head |
 | `images/hair_front.png` | head | drawn **over** the body and its clothes |
+
+`tools/skeleton.png` and `tools/skeleton_wings.png` are the hand-drawn bones the
+rig is traced from — the body's joints and the two wing pivots. Redraw over them
+to move a joint; see the note at the top of `pet_rig_config.js` for how the
+strokes are read.
 
 `parts_guide_*.png` in this folder is a tracing template: the character with the
 skeleton, the joints and each part's pivot drawn on top. Open it as a background
