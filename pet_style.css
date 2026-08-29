@@ -47,12 +47,6 @@ html, body {
   100% { transform: scale(1, 1); }
 }
 
-/* The ragdoll in pet_rig.js does the landing now — it whips the body down and
-   the pose spring pulls it back up. This keyframe is only still reached when
-   the rig is switched off or has not finished cutting the artwork, so it stays
-   as the fallback rather than being deleted. A transform on the canvas would
-   otherwise fight the rig's own, and would break the alpha hit-test that reads
-   the canvas rect. */
 .pet-canvas.landing { animation: pet-land 260ms cubic-bezier(.22, .61, .36, 1); }
 
 @media (prefers-reduced-motion: reduce) {
