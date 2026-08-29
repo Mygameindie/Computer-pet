@@ -28,9 +28,21 @@
 
 window.PET_RIG = {
 
-  // Turn the whole ragdoll off and every caller falls back to drawing the flat
-  // sprite exactly as it did before the rig existed. Nothing else changes.
-  enabled: true,
+  // ---- THE RAGDOLL IS OFF ---------------------------------------------------
+  // Every caller falls back to drawing the flat sprite exactly as it did before
+  // the rig existed: no cutting the artwork into limbs, no skinned grid, no soft
+  // tissue, no physics. The pet is one image again.
+  //
+  // Nothing else in this file stops working. The wings, tail and hair are still
+  // separate layers that draw behind and in front of the body — pet_back_layer.js
+  // reads backParts / frontParts below and does not need the rig — so a pet with
+  // a tail still has one. The skeleton, the joints and the soft tissue below are
+  // all inert while this is false; they are kept because they are measured off
+  // the artwork and off tools/skeleton.png, and throwing them away would mean
+  // measuring them again.
+  //
+  // Set this back to true and the ragdoll returns exactly as it was.
+  enabled: false,
 
   src: { w: 851, h: 1134 },
 
