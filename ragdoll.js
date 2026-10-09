@@ -572,7 +572,9 @@
     // hang (optional): the shape of the clothes that hang from the hips (a
     // skirt, a dress). Below the hips those go with the body instead of being
     // split between the legs, so the legs swing underneath them.
-    buildArt(imgs, cloth, cs, hang) {
+    // over / under (optional): clothes carried by the body but drawn over the
+    // chest (bra straps, so they don't bounce with it) or under it.
+    buildArt(imgs, cloth, cs, hang, over, under) {
       const CW = Math.round(CFG.SRC_W * cs), CH = Math.round(CFG.SRC_H * cs);
       const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w); c.height = Math.max(1, h); return c; };
       const mkRead = (w, h) => { const c = mk(w, h); return { c, x: c.getContext('2d', { willReadFrequently: true }) }; };
@@ -677,6 +679,13 @@
           if (part.region) {
             w.x.globalCompositeOperation = 'destination-in';
             shape(w.x, part.region);
+            // The chest wins where its region overlaps another (the arms
+            // reach in over the side of the chest), so a bra cup only ever
+            // moves with the chest.
+            if (!part.offset) {
+              w.x.globalCompositeOperation = 'destination-out';
+              for (const o of regionParts) if (o.offset) shape(w.x, o.region);
+            }
             if (part.drop && hang) {
               w.x.globalCompositeOperation = 'destination-out';
               w.x.drawImage(hang, 0, 0);
@@ -697,6 +706,10 @@
               w.x.globalCompositeOperation = 'source-over';
               w.x.drawImage(h.c, 0, 0);
             }
+            if (under) {
+              w.x.globalCompositeOperation = 'destination-over';
+              w.x.drawImage(under, 0, 0);
+            }
           } else {
             w.x.clearRect(0, 0, CW, CH);
           }
@@ -715,6 +728,23 @@
         out.push({
           id: part.id, pivot: part.pivot, child: part.child, offset: part.offset, canvas: c,
           ox: pv.x * cs - box.x0, oy: pv.y * cs - box.y0,       // pivot inside the part's canvas
+          restAngle: Math.atan2(ch.y - pv.y, ch.x - pv.x),
+        });
+      }
+      // The body's over-the-chest layer: a copy of the body's frame drawn after
+      // the chest, so it moves with the body but covers the chest.
+      if (over && bboxOf(over.getContext('2d', { willReadFrequently: true }))) {
+        const o = mkRead(CW, CH);
+        o.x.drawImage(over, 0, 0);
+        const b = bboxOf(o.x);
+        const c = mk(b.x1 - b.x0, b.y1 - b.y0);
+        c.getContext('2d').drawImage(o.c, -b.x0, -b.y0);
+        const pv = CFG.particles.N, ch = CFG.particles.P;
+        let at = out.length;
+        for (let i = out.length - 1; i >= 0; i--) if (out[i].offset || out[i].id === 'body') { at = i + 1; break; }
+        out.splice(at, 0, {
+          id: 'body_over', pivot: 'N', child: 'P', canvas: c,
+          ox: pv.x * cs - b.x0, oy: pv.y * cs - b.y0,
           restAngle: Math.atan2(ch.y - pv.y, ch.x - pv.x),
         });
       }

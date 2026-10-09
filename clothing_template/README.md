@@ -30,6 +30,13 @@ Tips:
 - **Skirts and dresses** would be split between the legs and tear, so mark them `hangs: true`
   in `outfit_config.js`. Then everything below the hips hangs from the body in one piece and
   the legs swing underneath. The whole Dress category, and `skirt1`, are set up that way already.
+- **Extra layers (optional).** One garment can have two more files with the same name plus an ending.
+  Both move with the **body** (never with the chest, arms or legs):
+  - `<name>_over.png`: drawn **over** the chest. Use it for bra straps: drawn in the main file,
+    the part of a strap on the breast bounced with the chest and the strap broke in two.
+  - `<name>_under.png`: drawn **under** the chest (the breasts cover it).
+  Example, the bra: cups in `topunderwear1.png`, straps in `topunderwear1_over.png`.
+- The chest wins over the arms: anything inside the pink circles only ever moves with the chest.
 - Give garments an outline (black, like the body art). Colour tinting in the Dress Up panel
   works best on light/white garments.
 
