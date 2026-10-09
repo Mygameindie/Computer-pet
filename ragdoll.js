@@ -264,12 +264,10 @@
       b.x -= dx * diff * wb; b.y -= dy * diff * wb;
     }
 
-    // Keep a limb within the angles it is allowed, relative to its frame. If the
-    // far end is held by the cursor, the body is moved instead of the limb, so a
-    // pet picked up by the hand still can't have that arm go past its limit.
+    // Keep a limb within the angles it is allowed, relative to its frame.
     limit(L) {
+      if (this.pin && this.pin.name === L.tip) return;
       const piv = this.p[L.pivot], tip = this.p[L.tip];
-      const tipHeld = this.pin && this.pin.name === L.tip;
       const frame = this.frameAngle(L.frame);
       const base = this.restAng(L.pivot, L.tip) + frame;
       const cur = Math.atan2(tip.y - piv.y, tip.x - piv.x);
@@ -278,13 +276,8 @@
       if (d >= lo && d <= hi) return;
       const a = base + Math.max(lo, Math.min(hi, d));
       const len = Math.hypot(tip.x - piv.x, tip.y - piv.y);
-      if (tipHeld) {
-        piv.x = tip.x - Math.cos(a) * len;
-        piv.y = tip.y - Math.sin(a) * len;
-      } else {
-        tip.x = piv.x + Math.cos(a) * len;
-        tip.y = piv.y + Math.sin(a) * len;
-      }
+      tip.x = piv.x + Math.cos(a) * len;
+      tip.y = piv.y + Math.sin(a) * len;
     }
 
     clampSoft() {
