@@ -79,8 +79,8 @@
     { id: 'back_wings', file: 'back_wings', optional: true, pivot: 'N', child: 'P' },
     { id: 'back_tail',  file: 'back_tail',  optional: true, pivot: 'P', child: 'N' },
     { id: 'back_hair',  file: 'back_hair',  optional: true, pivot: 'N', child: 'Hr' },
-    { id: 'leg_L', file: 'leg_L', spread: 1, carry: { t: 'rect', x0: 340, y0: 869, x1: 425, y1: 900 }, pivot: 'HipL', child: 'FL', region: { t: 'rect', x0: 0,   y0: 868, x1: 425, y1: SRC_H } },
-    { id: 'leg_R', file: 'leg_R', spread: -1, carry: { t: 'rect', x0: 425, y0: 869, x1: 510, y1: 900 }, pivot: 'HipR', child: 'FR', region: { t: 'rect', x0: 425, y0: 868, x1: SRC_W, y1: SRC_H } },
+    { id: 'leg_L', file: 'leg_L', carry: { t: 'rect', x0: 340, y0: 869, x1: 425, y1: 900 }, pivot: 'HipL', child: 'FL', region: { t: 'rect', x0: 0,   y0: 868, x1: 425, y1: SRC_H } },
+    { id: 'leg_R', file: 'leg_R', carry: { t: 'rect', x0: 425, y0: 869, x1: 510, y1: 900 }, pivot: 'HipR', child: 'FR', region: { t: 'rect', x0: 425, y0: 868, x1: SRC_W, y1: SRC_H } },
     { id: 'arm_L', file: 'arm_L', lift: 1, carry: { t: 'rect', x0: 340, y0: 590, x1: 367, y1: 662 }, pivot: 'SL', child: 'HL', region: { t: 'rect', x0: 0,   y0: 606, x1: 346,   y1: 846 } },
     { id: 'arm_R', file: 'arm_R', lift: -1, carry: { t: 'rect', x0: 483, y0: 590, x1: 510, y1: 662 }, pivot: 'SR', child: 'HR', region: { t: 'rect', x0: 505, y0: 606, x1: SRC_W, y1: 846 } },
     { id: 'body',  file: 'body',  pivot: 'N', child: 'P', rest: true },
@@ -94,13 +94,9 @@
   // moves off, the torso would be left with a raw skin edge and no outline, so a
   // line is faded in along it (from `from` to `to`, in source px) as the arm
   // turns from 20 to 40 degrees away from standing.
-  // `limbs` are the arms/legs whose swing fades the line in (the biggest one
-  // counts; a third value of 1 or -1 counts only the swing in that direction); `t0`/`t1` are the degrees where it starts and is fully shown.
   const edges = [
-    { limbs: [['SL', 'HL']], from: [372, 596], to: [372, 647], w: 9.5, t0: 20, t1: 40 },
-    { limbs: [['SR', 'HR']], from: [478, 596], to: [478, 647], w: 9.5, t0: 20, t1: 40 },
-    // the bottom of the pelvis, once either leg has swung away from standing
-    { limbs: [['HipL', 'FL', 1], ['HipR', 'FR', -1]], from: [372, 862], ctrl: [425, 884], to: [478, 862], w: 9.5, t0: 8, t1: 12 },
+    { pivot: 'SL', tip: 'HL', from: [372, 596], to: [372, 647], w: 9.5 },
+    { pivot: 'SR', tip: 'HR', from: [478, 596], to: [478, 647], w: 9.5 },
   ];
 
   // A raised arm lifts its shoulder: the whole arm (with the shoulder lump it
@@ -109,11 +105,7 @@
   // so it costs nothing in the physics.
   const shoulderLift = { up: 16, in: 5, from: 10, full: 90 };
 
-  // A leg that swings out slides toward the body and up a little, so its top stays
-  // tucked under the pelvis instead of pulling away from it.
-  const hipSlide = { in: 9, up: 4, from: 8, full: 45 };
-
-  const config = { hipSlide, shoulderLift, SRC_W, SRC_H, SOLE_Y, particles, soft, rigid, limits, edges, parts };
+  const config = { shoulderLift, SRC_W, SRC_H, SOLE_Y, particles, soft, rigid, limits, edges, parts };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = config;
   root.RAGDOLL_CONFIG = config;
