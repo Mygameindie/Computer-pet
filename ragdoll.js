@@ -264,20 +264,33 @@
       b.x -= dx * diff * wb; b.y -= dy * diff * wb;
     }
 
-    // Keep a limb within the angles it is allowed, relative to its frame.
+    // Keep a limb within the angles it is allowed, relative to its frame. When the
+    // far end is held by the cursor the limb may go further (`held` in the
+    // config) and the BODY is swung to respect it, so a pet picked up by the hand
+    // hangs with that arm raised rather than bent back. A limb with no `held`
+    // range is left alone while its end is held.
     limit(L) {
-      if (this.pin && this.pin.name === L.tip) return;
+      const tipHeld = this.pin && this.pin.name === L.tip;
+      let lo = L.lo, hi = L.hi;
+      if (tipHeld) {
+        if (L.held === undefined) return;
+        lo = -L.held; hi = L.held;
+      }
       const piv = this.p[L.pivot], tip = this.p[L.tip];
       const frame = this.frameAngle(L.frame);
       const base = this.restAng(L.pivot, L.tip) + frame;
       const cur = Math.atan2(tip.y - piv.y, tip.x - piv.x);
       const d = wrap(cur - base);
-      const lo = L.lo * DEG, hi = L.hi * DEG;
-      if (d >= lo && d <= hi) return;
-      const a = base + Math.max(lo, Math.min(hi, d));
+      if (d >= lo * DEG && d <= hi * DEG) return;
+      const a = base + Math.max(lo * DEG, Math.min(hi * DEG, d));
       const len = Math.hypot(tip.x - piv.x, tip.y - piv.y);
-      tip.x = piv.x + Math.cos(a) * len;
-      tip.y = piv.y + Math.sin(a) * len;
+      if (tipHeld) {
+        piv.x = tip.x - Math.cos(a) * len;
+        piv.y = tip.y - Math.sin(a) * len;
+      } else {
+        tip.x = piv.x + Math.cos(a) * len;
+        tip.y = piv.y + Math.sin(a) * len;
+      }
     }
 
     clampSoft() {
