@@ -63,6 +63,7 @@ so each one shows up in Dress Up as soon as the file exists:
 | Bodysuit | `bodysuit1.png` |
 | Shoes | `shoes1.png` |
 | Glove | `glove1.png` |
+| Sleeves | `sleeves1.png` |
 | Bunnysuit Bow | `bunnysuitbow1.png` |
 | Glasses | `glasses1.png` |
 | Ears | `ears1.png` |
