@@ -66,8 +66,8 @@
   // hand: the arm may be raised further (or it couldn't hang from it), but it
   // may not be lowered any further, or it would swing into the body.
   const limits = [
-    { pivot: 'SL',   tip: 'HL', lo: -50, hi: 90, heldHi: 105, frame: 'torso' },
-    { pivot: 'SR',   tip: 'HR', lo: -90, hi: 50, heldLo: -105, frame: 'torso' },
+    { pivot: 'SL',   tip: 'HL', lo: -40, hi: 90, heldHi: 90, frame: 'torso' },
+    { pivot: 'SR',   tip: 'HR', lo: -90, hi: 40, heldLo: -90, frame: 'torso' },
     { pivot: 'HipL', tip: 'FL', lo: -12, hi: 50, frame: 'torso' },
     { pivot: 'HipR', tip: 'FR', lo: -50, hi: 12, frame: 'torso' },
     { pivot: 'N',    tip: 'Hd', lo: -30, hi: 30, frame: 'torso' },

@@ -53,6 +53,7 @@
   const SKEL = Object.keys(CFG.particles);
   const SOFT = Object.keys(CFG.soft);
   const ALL = SKEL.concat(SOFT);
+  const SIDED = ['SL', 'SR', 'HipL', 'HipR'];   // joints that belong on one side of the spine
   const ARM_LIMITS = CFG.limits.filter(L => L.tip === 'HL' || L.tip === 'HR');
 
   const wrap = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
@@ -97,6 +98,12 @@
         const d = Math.hypot(this.rest[a].x - this.rest[b].x, this.rest[a].y - this.rest[b].y);
         return { a, b, len: d };
       });
+      // Which side of the spine (neck to pelvis) each shoulder and hip is on.
+      const ax = this.rest.P.x - this.rest.N.x, ay = this.rest.P.y - this.rest.N.y;
+      this.sideOf = {};
+      for (const name of SIDED) {
+        this.sideOf[name] = Math.sign(ax * (this.rest[name].y - this.rest.N.y) - ay * (this.rest[name].x - this.rest.N.x));
+      }
       this._init = true;
       this.snapToPose();
     }
@@ -263,6 +270,7 @@
       for (let it = 0; it < ITERATIONS; it++) {
         this.pinJoint();
         for (const l of this.links) this.solve(l);
+        this.keepSides();
         for (const lim of CFG.limits) this.limit(lim);
         this.clampSoft();
         this.floor();
@@ -287,6 +295,34 @@
       }
 
       this.checkSettled();
+    }
+
+    // Every bone length can be kept with the torso turned inside out: a shoulder
+    // or hip flipped over the spine to the other side, the body's mirror image.
+    // Nothing pulled it back from there, so the arms crossed each other and
+    // came out through the body. Put any joint that has crossed the spine (the
+    // neck-pelvis line) back on its own side, mirrored across it.
+    keepSides() {
+      const n = this.p.N, pl = this.p.P;
+      const ax = pl.x - n.x, ay = pl.y - n.y;
+      const len2 = ax * ax + ay * ay;
+      if (len2 < 1e-6) return;
+      for (const name of SIDED) {
+        const j = this.p[name];
+        const side = ax * (j.y - n.y) - ay * (j.x - n.x);
+        if (Math.sign(side) === this.sideOf[name]) continue;
+        // Mirror a point (and where it was, so it isn't thrown) across a line.
+        const mirror = (q, ox, oy, dx, dy) => {
+          const d2 = dx * dx + dy * dy || 1e-6;
+          for (const [kx, ky] of [['x', 'y'], ['px', 'py']]) {
+            const t = ((q[kx] - ox) * dx + (q[ky] - oy) * dy) / d2;
+            q[kx] = 2 * (ox + dx * t) - q[kx];
+            q[ky] = 2 * (oy + dy * t) - q[ky];
+          }
+        };
+        if (this.pin && this.pin.name === name) continue;   // held by the cursor: leave it
+        mirror(j, n.x, n.y, ax, ay);
+      }
     }
 
     pinJoint() {
@@ -346,13 +382,25 @@
       const a = base + (toLo < toHi ? lo : hi) * DEG;
       const len = Math.hypot(tip.x - piv.x, tip.y - piv.y);
       if (tipHeld) {
-        // Swing the body round the held hand, and shift its previous position by
-        // the same amount: in this sim a move IS a speed, and a limit pushing
-        // speed into the body every step kept a pet held by its hand
-        // cartwheeling forever.
-        const nx = tip.x - Math.cos(a) * len, ny = tip.y - Math.sin(a) * len;
-        piv.px += nx - piv.x; piv.py += ny - piv.y;
-        piv.x = nx; piv.y = ny;
+        // Turn the whole body (everything but the held hand) about the
+        // shoulder until the arm is back in range. Turning it as one piece
+        // can't fold a shoulder over the spine (shoving the shoulder alone
+        // could, turning the body inside out), and turning where each joint
+        // was by the same amount keeps from adding speed: in this sim a move IS
+        // a speed, and a limit pushing speed in kept a held pet cartwheeling.
+        const phi = wrap(d - Math.atan2(Math.sin(a - base), Math.cos(a - base)));
+        const c = Math.cos(phi), si = Math.sin(phi);
+        const ox = piv.x, oy = piv.y;
+        const turn = (q, kx, ky) => {
+          const dx = q[kx] - ox, dy = q[ky] - oy;
+          q[kx] = ox + dx * c - dy * si;
+          q[ky] = oy + dx * si + dy * c;
+        };
+        for (const n of ALL) {
+          if (n === L.tip) continue;
+          const q = this.p[n];
+          turn(q, 'x', 'y'); turn(q, 'px', 'py');
+        }
       } else {
         // While held, the same for a limb pushed back inside its range (except
         // the head resting on the floor: there the floor and the neck limit take
