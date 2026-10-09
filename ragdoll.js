@@ -406,20 +406,26 @@
         ctx.fill();
       };
 
-      // Paint a limb's outline over in its own skin colour inside a box.
-      const unline = (ctx, r) => {
+      // The skin colour of a picture: its most common light colour.
+      const skinOf = (ctx) => {
         const all = ctx.getImageData(0, 0, CW, CH).data;
-        // Skin = the most common light colour in the picture.
         const count = new Map();
         for (let i = 0; i < all.length; i += 16) {
           if (all[i + 3] < 250 || all[i] + all[i + 1] + all[i + 2] < 450) continue;
           const key = (all[i] >> 3) << 10 | (all[i + 1] >> 3) << 5 | (all[i + 2] >> 3);
           count.set(key, (count.get(key) || 0) + 1);
         }
-        let best = 0, bestN = 0;
+        let best = -1, bestN = 0;
         for (const [k2, n] of count) if (n > bestN) { bestN = n; best = k2; }
-        if (!bestN) return;
-        const sr = ((best >> 10) & 31) * 8 + 4, sg = ((best >> 5) & 31) * 8 + 4, sb = (best & 31) * 8 + 4;
+        if (best < 0) return null;
+        return [((best >> 10) & 31) * 8 + 4, ((best >> 5) & 31) * 8 + 4, (best & 31) * 8 + 4];
+      };
+
+      // Paint a limb's outline over in its own skin colour inside a box.
+      const unline = (ctx, r) => {
+        const skin = skinOf(ctx);
+        if (!skin) return;
+        const [sr, sg, sb] = skin;
         const x0 = Math.max(0, Math.floor(r.x0 * cs)), y0 = Math.max(0, Math.floor(r.y0 * cs));
         const x1 = Math.min(CW, Math.ceil(r.x1 * cs)), y1 = Math.min(CH, Math.ceil(r.y1 * cs));
         if (x1 <= x0 || y1 <= y0) return;
@@ -456,6 +462,8 @@
         art.x.drawImage(img, 0, 0, CW, CH);
         if (part.unline) unline(art.x, part.unline);
         if (part.rest) {
+          const skin = skinOf(art.x);
+          if (skin) this.skin = `rgb(${skin[0]},${skin[1]},${skin[2]})`;
           // The lumps that travel with the limbs are taken out of the torso...
           art.x.globalCompositeOperation = 'destination-out';
           for (const o of carried) shape(art.x, o.carry);
@@ -554,6 +562,46 @@
         const dx = (q[0] - N.x) * k, dy = (q[1] - N.y) * k;
         return [n.x + dx * Math.cos(th) - dy * Math.sin(th), n.y + dx * Math.sin(th) + dy * Math.cos(th)];
       };
+      // Armpits first, so the shoulder line is drawn over their top.
+      for (const L of CFG.armpitLines || []) {
+        const t = placed[L.part];
+        if (!t) continue;
+        const P = CFG.particles[t.pivot];
+        const tip = this.p[CFG.parts.find(p => p.id === L.part).child];
+        const raise = L.sign * wrap(Math.atan2(tip.y - this.p[t.pivot].y, tip.x - this.p[t.pivot].x)
+          - (this.restAng(t.pivot, CFG.parts.find(p => p.id === L.part).child) + th)) / DEG;
+        const alpha = Math.max(0, Math.min(1, (raise - 3) / 9));
+        if (alpha <= 0) continue;
+        const onArm = q => {
+          const dx = (q[0] - P.x) * k, dy = (q[1] - P.y) * k;
+          return [t.x + dx * Math.cos(t.ang) - dy * Math.sin(t.ang), t.y + dx * Math.sin(t.ang) + dy * Math.cos(t.ang)];
+        };
+        const a = onBody(L.side), b = onArm(L.arm), pv = onArm([P.x, P.y]), inn = onBody(L.inner);
+        const c1 = onBody(L.ctrl), c2 = onArm(L.ctrl);
+        const c = [(c1[0] + c2[0]) / 2, (c1[1] + c2[1]) / 2];
+        const X = q => q[0] - originX, Y = q => q[1] - originY;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        // Skin over the gap...
+        ctx.fillStyle = this.skin || '#fde2cf';
+        ctx.beginPath();
+        ctx.moveTo(X(a), Y(a));
+        ctx.quadraticCurveTo(X(c), Y(c), X(b), Y(b));
+        ctx.lineTo(X(pv), Y(pv));
+        ctx.lineTo(X(inn), Y(inn));
+        ctx.closePath();
+        ctx.fill();
+        // ...and the outline along its edge.
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = L.w * k;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(X(a), Y(a));
+        ctx.quadraticCurveTo(X(c), Y(c), X(b), Y(b));
+        ctx.stroke();
+        ctx.restore();
+      }
+
       for (const L of CFG.shoulderLines || []) {
         const t = placed[L.part];
         if (!t) continue;

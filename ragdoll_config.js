@@ -104,6 +104,16 @@
   // arm, so once the arm turns the two halves part; this draws it again every
   // frame, bending to wherever the arm is. `ctrl` shapes the curve at rest (it
   // moves half with the body, half with the arm). Source px.
+  // The armpit line: when an arm is raised, a gap opens between the underside of
+  // the arm and the side of the body. This fills it with skin and draws the
+  // outline from the body's side line (`side`) round to the arm's underside
+  // (`arm`). `inner` is a point inside the body that closes the filled area.
+  // Fades in over the first few degrees of raise; hidden when the arm is down.
+  const armpitLines = [
+    { part: 'arm_L', sign: 1,  side: [373, 664], ctrl: [369, 654], arm: [353, 668], inner: [392, 640], w: 7.5 },
+    { part: 'arm_R', sign: -1, side: [477, 664], ctrl: [481, 654], arm: [497, 668], inner: [458, 640], w: 7.5 },
+  ];
+
   const shoulderLines = [
     { part: 'arm_L', neck: [380, 605], ctrl: [363, 605], arm: [349, 612], w: 7.5 },
     { part: 'arm_R', neck: [470, 605], ctrl: [487, 605], arm: [501, 612], w: 7.5 },
@@ -115,7 +125,7 @@
   // so it costs nothing in the physics.
   const shoulderLift = { up: 16, in: 5, from: 10, full: 90 };
 
-  const config = { shoulderLift, SRC_W, SRC_H, SOLE_Y, particles, soft, rigid, limits, shoulderLines, parts };
+  const config = { shoulderLift, SRC_W, SRC_H, SOLE_Y, particles, soft, rigid, limits, shoulderLines, armpitLines, parts };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = config;
   root.RAGDOLL_CONFIG = config;
