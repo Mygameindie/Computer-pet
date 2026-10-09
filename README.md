@@ -211,15 +211,30 @@ standing on. Only one of the two panels is open at a time.
 
 ## Ragdoll art
 
-The ragdoll slices whatever is on screen (base + clothes), so it needs no extra
-art, only a base sprite whose limbs don't overlap each other or the torso, which
-`base.png` already is: a standing pose with the arms held out and the legs apart.
-If you redraw the base, keep that and update the joint positions and capsule
-sizes in `ragdoll_config.js` to match. Draw each limb a little longer than it
-needs to be at the joints and the bends will hide the seams.
+The pet is drawn from separate part files in `images/parts/`, all 851 × 1134,
+transparent, in the standing pose. A character becomes a ragdoll when every
+required part exists (character 2 uses the same names with `_2`, e.g. `head_2.png`);
+a character without a full set keeps its normal sprite.
 
-Loose clothes (sleeves, skirts) bend best, because tight clothes with a seam at
-an elbow or knee will show that seam when the limb bends.
+| File | Needed | Notes |
+|---|---|---|
+| `head.png` | yes | head, face, front hair; turns about the neck |
+| `body.png` | yes | torso: fill and lines together; covers the tops of the arms and legs |
+| `arm_L.png`, `arm_R.png` | yes | whole arm with the hand; swings at the shoulder |
+| `leg_L.png`, `leg_R.png` | yes | whole leg with the foot; swings at the hip |
+| `chest_L.png`, `chest_R.png` | no | bounce on springs; they carry their own fill |
+| `back_hair.png` | no | hangs behind the head and sways |
+| `back_wings.png`, `back_tail.png` | no | follow the body |
+
+`L` is the left side **of the picture**. Drawn back to front: back parts, legs,
+arms, body, chest, head.
+
+The joint positions, how far each limb may turn, and which part of the canvas
+belongs to which part (for clothes) are all in `ragdoll_config.js`. Clothes are
+still drawn full-canvas like before; at runtime each pixel of a garment is handed
+to the part whose region it falls in (sleeves to the arm, shorts to the legs, a
+bra to the chest), so outfits move with the body. If you redraw a part so a joint
+moves, adjust that joint there.
 
 ## Adding artwork
 

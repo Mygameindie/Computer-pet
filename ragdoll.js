@@ -1,5 +1,5 @@
 // ===========================================================
-// 🪆 ragdoll.js — a standing "active ragdoll" for the pet sprite
+// 🪆 ragdoll.js — a standing "active ragdoll" built from the part PNGs
 // ===========================================================
 // The pet is a skeleton of joints (see ragdoll_config.js) simulated with
 // position-based dynamics: every joint is a point, every bone a distance
@@ -12,8 +12,12 @@
 //
 // Grab the pet and it goes limp and hangs from the exact joint you picked up.
 // Let go and it falls limp; once it lands the stiffness ramps back up and it
-// pulls itself upright again. Moving the pet around while it stands makes the
-// arms trail behind it, because the springs are soft at the hands.
+// pulls itself upright again.
+//
+// Besides the skeleton there are "soft" joints — the chest and the end of the
+// back hair — that hang off the body on springs instead of being pulled to the
+// box. They lag, overshoot and settle, which is all the chest bounce and hair
+// sway are: the body moves, they follow a moment later.
 //
 // The sim is in screen pixels and knows nothing about Electron — main.js still
 // owns where the pet's box is; this only decides how the body hangs off it. The
@@ -38,8 +42,13 @@
   const GET_UP_RATE = 1.3;        // stiffness per second once back on the floor
   const SETTLE_DIST = 0.6;        // px from the standing pose that counts as "standing"
   const SETTLE_SPEED = 0.06;      // px/step
+  const DEG = Math.PI / 180;
 
-  const NAMES = Object.keys(CFG.particles);
+  const SKEL = Object.keys(CFG.particles);
+  const SOFT = Object.keys(CFG.soft);
+  const ALL = SKEL.concat(SOFT);
+
+  const wrap = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 
   class Ragdoll {
     constructor() {
@@ -67,25 +76,25 @@
     layout(k) {
       if (k === this.k && this._init) return;
       this.k = k;
-      const shift = CFG.SRC_H - CFG.SOLE_Y;   // feet stand ON the floor, not 7% above it
-      for (const n of NAMES) {
-        const s = CFG.particles[n];
-        this.rest[n] = { x: s.x * k, y: (s.y + shift) * k, r: s.r * k, kk: s.k };
-      }
-      this.links = [];
-      const dist = (a, b) => Math.hypot(this.rest[a].x - this.rest[b].x, this.rest[a].y - this.rest[b].y);
-      for (const [a, b] of CFG.rigid) { const d = dist(a, b); this.links.push({ a, b, min: d, max: d }); }
-      for (const [a, b, lo, hi] of CFG.ranges) {
-        const d = dist(a, b);
-        this.links.push({ a, b, min: d * lo, max: d * hi });
-      }
-      if (!this._init) { this._init = true; this.snapToPose(); }
-      else this.snapToPose();
+      const shift = CFG.SRC_H - CFG.SOLE_Y;   // feet stand ON the floor
+      const put = (n, s, kk) => { this.rest[n] = { x: s.x * k, y: (s.y + shift) * k, r: s.r * k, kk }; };
+      for (const n of SKEL) put(n, CFG.particles[n], CFG.particles[n].k);
+      for (const n of SOFT) { put(n, CFG.soft[n], CFG.soft[n].k); this.rest[n].max = CFG.soft[n].max * k; }
+      this.links = CFG.rigid.map(([a, b]) => {
+        const d = Math.hypot(this.rest[a].x - this.rest[b].x, this.rest[a].y - this.rest[b].y);
+        return { a, b, len: d };
+      });
+      this._init = true;
+      this.snapToPose();
     }
 
     snapToPose() {
-      for (const n of NAMES) {
+      for (const n of SKEL) {
         const t = this.target(n);
+        this.p[n] = { x: t.x, y: t.y, px: t.x, py: t.y };
+      }
+      for (const n of SOFT) {
+        const t = this.softTarget(n);
         this.p[n] = { x: t.x, y: t.y, px: t.x, py: t.y };
       }
       this.pin = null;
@@ -95,6 +104,26 @@
     target(n) {
       const r = this.rest[n];
       return { x: this.box.x + r.x, y: this.box.y + r.y };
+    }
+
+    // ---- Frames ----------------------------------------------------------
+    restAng(a, b) { return Math.atan2(this.rest[b].y - this.rest[a].y, this.rest[b].x - this.rest[a].x); }
+    ang(a, b) { return Math.atan2(this.p[b].y - this.p[a].y, this.p[b].x - this.p[a].x); }
+
+    // How far the torso (or the head) has turned from standing, in radians.
+    frameAngle(frame) {
+      return frame === 'head'
+        ? this.ang('N', 'Hd') - this.restAng('N', 'Hd')
+        : this.ang('N', 'P') - this.restAng('N', 'P');
+    }
+
+    // Where a soft joint would sit if it were bolted to its frame.
+    softTarget(n) {
+      const s = CFG.soft[n];
+      const th = this.frameAngle(s.anchor);
+      const dx = this.rest[n].x - this.rest.N.x, dy = this.rest[n].y - this.rest.N.y;
+      const c = Math.cos(th), si = Math.sin(th);
+      return { x: this.p.N.x + dx * c - dy * si, y: this.p.N.y + dx * si + dy * c };
     }
 
     // ---- Inputs from the scene ------------------------------------------
@@ -124,10 +153,10 @@
       this.airborne = airborne;
     }
 
-    // Pick the joint nearest to a point (screen px) and pin it there.
+    // Pick the skeleton joint nearest to a point (screen px) and pin it there.
     grab(wx, wy) {
       let best = null, bd = Infinity;
-      for (const n of NAMES) {
+      for (const n of SKEL) {
         const j = this.p[n];
         const d = Math.hypot(j.x - wx, j.y - wy) - this.rest[n].r * 0.6;
         if (d < bd) { bd = d; best = n; }
@@ -140,12 +169,13 @@
 
     release() { this.pin = null; this.settled = false; }
 
-    // Landing: the limbs and head are thrown downward by the impact (0..1).
+    // Landing: the limbs, head and chest are thrown downward by the impact (0..1).
     impact(strength) {
       const s = Math.max(0, Math.min(1, strength));
       const kick = (n, v) => { const j = this.p[n]; j.py -= v * s * this.k * 30; };
-      for (const n of ['Hd', 'HL', 'HR', 'EL', 'ER']) kick(n, 0.35);
-      for (const n of ['KL', 'KR']) kick(n, 0.18);
+      for (const n of ['Hd', 'HL', 'HR']) kick(n, 0.35);
+      for (const n of ['CL', 'CR']) kick(n, 0.5);
+      kick('Hr', 0.3);
       kick('P', 0.12);
       this.settled = false;
     }
@@ -177,11 +207,11 @@
       const g = GRAVITY * dt * dt * (1 - s);
       const bx = this.boxVel.x * dt, by = this.boxVel.y * dt;
 
-      for (const n of NAMES) {
+      for (const n of ALL) {
         const j = this.p[n];
         let vx = j.x - j.px, vy = j.y - j.py;
         // Damp the speed *relative to the box*, so a fall or a throw isn't
-        // braked by air drag but loose limbs still settle.
+        // braked by air drag but loose joints still settle.
         vx = bx + (vx - bx) * DAMPING;
         vy = by + (vy - by) * DAMPING;
         j.px = j.x; j.py = j.y;
@@ -189,10 +219,17 @@
         j.y += vy + g;
       }
 
-      // The balance springs.
-      for (const n of NAMES) {
+      // The balance springs pull the skeleton to the standing pose...
+      for (const n of SKEL) {
         const j = this.p[n], t = this.target(n);
         const a = s * this.rest[n].kk;
+        j.x += (t.x - j.x) * a;
+        j.y += (t.y - j.y) * a;
+      }
+      // ...and the soft joints to wherever their part of the body has got to.
+      for (const n of SOFT) {
+        const j = this.p[n], t = this.softTarget(n);
+        const a = this.rest[n].kk;
         j.x += (t.x - j.x) * a;
         j.y += (t.y - j.y) * a;
       }
@@ -200,6 +237,8 @@
       for (let it = 0; it < ITERATIONS; it++) {
         this.pinJoint();
         for (const l of this.links) this.solve(l);
+        for (const lim of CFG.limits) this.limit(lim);
+        this.clampSoft();
         this.floor();
       }
       this.pinJoint();
@@ -210,26 +249,47 @@
     pinJoint() {
       if (!this.pin) return;
       const j = this.p[this.pin.name];
-      const x = this.pin.ax + (this.box.x - this.pin.bx);
-      const y = this.pin.ay + (this.box.y - this.pin.by);
-      j.x = x; j.y = y;
+      j.x = this.pin.ax + (this.box.x - this.pin.bx);
+      j.y = this.pin.ay + (this.box.y - this.pin.by);
     }
 
     solve(l) {
       const a = this.p[l.a], b = this.p[l.b];
-      let dx = b.x - a.x, dy = b.y - a.y;
+      const dx = b.x - a.x, dy = b.y - a.y;
       const d = Math.hypot(dx, dy) || 1e-6;
-      let target = d;
-      if (d < l.min) target = l.min; else if (d > l.max) target = l.max; else return;
-      const diff = (d - target) / d;
+      const diff = (d - l.len) / d;
       const pa = this.pin && this.pin.name === l.a, pb = this.pin && this.pin.name === l.b;
       const wa = pa ? 0 : (pb ? 1 : 0.5), wb = pb ? 0 : (pa ? 1 : 0.5);
       a.x += dx * diff * wa; a.y += dy * diff * wa;
       b.x -= dx * diff * wb; b.y -= dy * diff * wb;
     }
 
+    // Keep a limb within the angles it is allowed, relative to its frame.
+    limit(L) {
+      if (this.pin && this.pin.name === L.tip) return;
+      const piv = this.p[L.pivot], tip = this.p[L.tip];
+      const frame = this.frameAngle(L.frame);
+      const base = this.restAng(L.pivot, L.tip) + frame;
+      const cur = Math.atan2(tip.y - piv.y, tip.x - piv.x);
+      const d = wrap(cur - base);
+      const lo = L.lo * DEG, hi = L.hi * DEG;
+      if (d >= lo && d <= hi) return;
+      const a = base + Math.max(lo, Math.min(hi, d));
+      const len = Math.hypot(tip.x - piv.x, tip.y - piv.y);
+      tip.x = piv.x + Math.cos(a) * len;
+      tip.y = piv.y + Math.sin(a) * len;
+    }
+
+    clampSoft() {
+      for (const n of SOFT) {
+        const j = this.p[n], t = this.softTarget(n), max = this.rest[n].max;
+        const dx = j.x - t.x, dy = j.y - t.y, d = Math.hypot(dx, dy);
+        if (d > max) { j.x = t.x + dx / d * max; j.y = t.y + dy / d * max; }
+      }
+    }
+
     floor() {
-      for (const n of NAMES) {
+      for (const n of ALL) {
         const j = this.p[n];
         const lim = this.floorY - this.rest[n].r;
         if (j.y > lim) {
@@ -243,96 +303,91 @@
     checkSettled() {
       if (this.held || this.airborne || this.pin || this.stiffness < 1) return;
       let worst = 0, fast = 0;
-      for (const n of NAMES) {
+      for (const n of SKEL) {
         const j = this.p[n], t = this.target(n);
         worst = Math.max(worst, Math.hypot(j.x - t.x, j.y - t.y));
-        fast = Math.max(fast, Math.hypot(j.x - j.px, j.y - j.py));
       }
+      for (const n of SOFT) {
+        const j = this.p[n], t = this.softTarget(n);
+        worst = Math.max(worst, Math.hypot(j.x - t.x, j.y - t.y));
+      }
+      for (const n of ALL) { const j = this.p[n]; fast = Math.max(fast, Math.hypot(j.x - j.px, j.y - j.py)); }
       if (worst < SETTLE_DIST && fast < SETTLE_SPEED && Math.hypot(this.boxVel.x, this.boxVel.y) < 1) {
         this.snapToPose();
       }
     }
 
     // ---- Art -------------------------------------------------------------
-    // `comp` is the finished sprite (body + clothes) on a canvas whose width
-    // maps to the 851px source art; `dpr` is only used to size the parts.
-    buildArt(comp) {
-      const cs = comp.width / CFG.SRC_W;
-      const pt = n => ({ x: CFG.particles[n].x * cs, y: CFG.particles[n].y * cs });
-      const at = v => (typeof v === 'string' ? pt(v) : { x: v[0] * cs, y: v[1] * cs });
-      const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h)); return c; };
+    // imgs: { <file name>: loaded image } for the parts that exist.
+    // cloth: a canvas with only the clothes drawn on it (or null), the same
+    // size as the scaled 851×1134 sprite — its pixels are handed to whichever
+    // part's region they fall in, so a sleeve moves with the arm.
+    // cs: canvas pixels per source pixel.
+    buildArt(imgs, cloth, cs) {
+      const CW = Math.round(CFG.SRC_W * cs), CH = Math.round(CFG.SRC_H * cs);
+      const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w); c.height = Math.max(1, h); return c; };
+      const mkRead = (w, h) => { const c = mk(w, h); return { c, x: c.getContext('2d', { willReadFrequently: true }) }; };
 
-      const trace = (ctx, shapes, ox, oy) => {
-        for (const s of shapes) {
-          ctx.beginPath();
-          if (s.t === 'circle') {
-            const c = at(s.c);
-            ctx.arc(c.x - ox, c.y - oy, s.r * cs, 0, Math.PI * 2);
-          } else if (s.t === 'rect') {
-            ctx.rect(s.x0 * cs - ox, s.y0 * cs - oy, (s.x1 - s.x0) * cs, (s.y1 - s.y0) * cs);
-          } else {   // capsule: a thick line with round ends
-            const a = at(s.a), b = at(s.b);
-            ctx.lineCap = 'round';
-            ctx.lineWidth = s.r * 2 * cs;
-            ctx.moveTo(a.x - ox, a.y - oy);
-            ctx.lineTo(b.x - ox, b.y - oy);
-            ctx.strokeStyle = '#000';
-            ctx.stroke();
-            continue;
+      const bboxOf = (ctx) => {
+        const d = ctx.getImageData(0, 0, CW, CH).data;
+        let x0 = CW, y0 = CH, x1 = -1, y1 = -1;
+        for (let y = 0; y < CH; y++) {
+          for (let x = 0; x < CW; x++) {
+            if (d[(y * CW + x) * 4 + 3] > 6) {
+              if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+            }
           }
-          ctx.fillStyle = '#000';
-          ctx.fill();
         }
+        return x1 < 0 ? null : { x0, y0, x1: x1 + 1, y1: y1 + 1 };
       };
 
-      const bounds = (shapes) => {
-        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-        const add = (x, y, r) => { x0 = Math.min(x0, x - r); y0 = Math.min(y0, y - r); x1 = Math.max(x1, x + r); y1 = Math.max(y1, y + r); };
-        for (const s of shapes) {
-          if (s.t === 'circle') { const c = at(s.c); add(c.x, c.y, s.r * cs); }
-          else if (s.t === 'rect') { add(s.x0 * cs, s.y0 * cs, 0); add(s.x1 * cs, s.y1 * cs, 0); }
-          else { const a = at(s.a), b = at(s.b); add(a.x, a.y, s.r * cs); add(b.x, b.y, s.r * cs); }
-        }
-        return { x0: Math.floor(x0) - 2, y0: Math.floor(y0) - 2, x1: Math.ceil(x1) + 2, y1: Math.ceil(y1) + 2 };
+      const shape = (ctx, r) => {
+        ctx.beginPath();
+        if (r.t === 'ellipse') ctx.ellipse(r.cx * cs, r.cy * cs, r.rx * cs, r.ry * cs, 0, 0, Math.PI * 2);
+        else ctx.rect(r.x0 * cs, r.y0 * cs, (r.x1 - r.x0) * cs, (r.y1 - r.y0) * cs);
+        ctx.fill();
       };
 
-      // Everything claimed by a limb or the head: the torso is the leftover.
-      const claimed = CFG.parts.filter(p => p.shapes);
+      const regionParts = CFG.parts.filter(p => p.region && imgs[p.file]);
       const out = [];
       for (const part of CFG.parts) {
-        let box;
-        if (part.rest) box = { x0: 0, y0: 0, x1: comp.width, y1: comp.height };
-        else box = bounds(part.shapes);
-        const w = box.x1 - box.x0, h = box.y1 - box.y0;
-        const c = mk(w, h);
-        const ctx = c.getContext('2d');
+        const img = imgs[part.file];
+        if (!img) continue;
 
-        if (part.rest) {
-          ctx.drawImage(comp, 0, 0);
-          ctx.globalCompositeOperation = 'destination-out';
-          for (const o of claimed) trace(ctx, o.shapes, 0, 0);
-          // Put back the root circles so a swinging limb leaves skin behind.
-          ctx.globalCompositeOperation = 'source-over';
-          for (const o of claimed) {
-            if (!o.keepRoot) continue;
-            const cc = at(o.keepRoot.c);
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(cc.x, cc.y, o.keepRoot.r * cs, 0, Math.PI * 2);
-            ctx.clip();
-            ctx.drawImage(comp, 0, 0);
-            ctx.restore();
+        const art = mkRead(CW, CH);
+        art.x.drawImage(img, 0, 0, CW, CH);
+        let box = bboxOf(art.x);
+
+        // The clothes that belong to this part.
+        let worn = null;
+        if (cloth) {
+          const w = mkRead(CW, CH);
+          w.x.drawImage(cloth, 0, 0);
+          if (part.region) {
+            w.x.globalCompositeOperation = 'destination-in';
+            shape(w.x, part.region);
+          } else if (part.rest) {
+            // The body takes whatever no other part claimed.
+            w.x.globalCompositeOperation = 'destination-out';
+            for (const o of regionParts) shape(w.x, o.region);
+          } else {
+            w.x.clearRect(0, 0, CW, CH);
           }
-        } else {
-          trace(ctx, part.shapes, box.x0, box.y0);
-          ctx.globalCompositeOperation = 'source-in';
-          ctx.drawImage(comp, -box.x0, -box.y0);
+          const wb = bboxOf(w.x);
+          if (wb) { worn = w.c; box = box ? { x0: Math.min(box.x0, wb.x0), y0: Math.min(box.y0, wb.y0), x1: Math.max(box.x1, wb.x1), y1: Math.max(box.y1, wb.y1) } : wb; }
         }
+        if (!box) continue;
 
-        const pv = pt(part.pivot), ch = pt(part.child);
+        const c = mk(box.x1 - box.x0, box.y1 - box.y0);
+        const cx = c.getContext('2d');
+        cx.drawImage(art.c, -box.x0, -box.y0);
+        if (worn) cx.drawImage(worn, -box.x0, -box.y0);
+
+        const pv = CFG.particles[part.pivot];
+        const ch = CFG.particles[part.child] || CFG.soft[part.child];
         out.push({
-          id: part.id, pivot: part.pivot, child: part.child, canvas: c,
-          ox: pv.x - box.x0, oy: pv.y - box.y0,           // pivot inside the part's canvas
+          id: part.id, pivot: part.pivot, child: part.child, offset: part.offset, canvas: c,
+          ox: pv.x * cs - box.x0, oy: pv.y * cs - box.y0,       // pivot inside the part's canvas
           restAngle: Math.atan2(ch.y - pv.y, ch.x - pv.x),
         });
       }
@@ -345,11 +400,21 @@
     draw(ctx, originX, originY, dpr) {
       if (!this.parts) return;
       const inv = 1 / dpr;
+      const th = this.frameAngle('torso');
       for (const part of this.parts) {
         const a = this.p[part.pivot], b = this.p[part.child];
-        const ang = Math.atan2(b.y - a.y, b.x - a.x) - part.restAngle;
+        let ax = a.x, ay = a.y, ang;
+        if (part.offset) {
+          // The chest: turns with the torso, then slips by however far its
+          // soft joint has strayed from where it would sit if bolted on.
+          const t = this.softTarget(part.offset), j = this.p[part.offset];
+          ax += j.x - t.x; ay += j.y - t.y;
+          ang = th;
+        } else {
+          ang = Math.atan2(b.y - a.y, b.x - a.x) - part.restAngle;
+        }
         ctx.save();
-        ctx.translate(a.x - originX, a.y - originY);
+        ctx.translate(ax - originX, ay - originY);
         ctx.rotate(ang);
         ctx.drawImage(part.canvas, -part.ox * inv, -part.oy * inv, part.canvas.width * inv, part.canvas.height * inv);
         ctx.restore();

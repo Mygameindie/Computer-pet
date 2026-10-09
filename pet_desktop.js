@@ -81,6 +81,8 @@
       h: PET_HEIGHT,
       cw: 0, ch: 0,                       // canvas size in CSS px (box + PAD)
       body: window.PetRagdoll ? new window.PetRagdoll.Ragdoll() : null,
+      partImgs: {},                       // images/parts/*.png that loaded for this character
+      hasParts: false,                    // a full set of parts exists, so it can be a ragdoll
       placed: false,                      // has the skeleton been put at the pet's position yet?
       artSig: null,                       // what the sliced art was built from
       lastBox: null,
@@ -127,6 +129,8 @@
     pet.canvas.height = Math.round(pet.ch * dpr);
     pet.canvas.style.width = pet.cw + 'px';
     pet.canvas.style.height = pet.ch + 'px';
+    // The landing squash pivots at the feet, which sit at the box's bottom edge.
+    pet.canvas.style.transformOrigin = '50% ' + (PAD + pet.h) + 'px';
     pet.canvas.style.left = -PAD + 'px';
     pet.canvas.style.top = -PAD + 'px';
     pet.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -138,6 +142,32 @@
   }
 
   pets.forEach(pet => { sizePet(pet); loadBase(pet); });
+
+  // ---- Part art -----------------------------------------------------------
+  // images/parts/<part>.png (character 2: <part>_2.png). A character becomes a
+  // ragdoll once every REQUIRED part loads; the optional ones (back hair, chest,
+  // wings, tail) are used when they are there.
+  const CFGR = window.RAGDOLL_CONFIG;
+  function loadParts(pet) {
+    if (!CFGR || !pet.body) return;
+    const suffix = pet.index === 0 ? '' : '_' + (pet.index + 1);
+    let pending = CFGR.parts.length;
+    CFGR.parts.forEach(part => {
+      const im = new Image();
+      const done = (ok) => {
+        if (ok) pet.partImgs[part.file] = im;
+        if (--pending > 0) return;
+        pet.hasParts = CFGR.parts.every(p => p.optional || pet.partImgs[p.file]);
+        pet.artSig = null; pet.placed = false;
+        artRev++;
+        requestRedraw();
+      };
+      im.onload = () => done(true);
+      im.onerror = () => done(false);
+      im.src = 'images/parts/' + part.file + suffix + '.png';
+    });
+  }
+  pets.forEach(loadParts);
 
   // ---- Drawing ------------------------------------------------------------
   let redrawQueued = false;
@@ -170,6 +200,7 @@
       if (!s || !s.visible) { ctx.clearRect(0, 0, pet.cw, pet.ch); return; }
 
       if (ragdollOn(pet)) { wakeRagdoll(); return; }
+      if (pet.hasParts && pet.body) { drawStanding(pet); return; }
 
       ctx.clearRect(0, 0, pet.cw, pet.ch);
       paintSprite(pet, ctx, PAD, PAD, pet.w, pet.h);
@@ -182,7 +213,18 @@
   // the body behaves while that happens. It simulates only while something is
   // moving, so a pet standing still costs nothing, as before.
   function ragdollOn(pet) {
-    return shared.ragdoll !== false && !!pet.body && pet.img && pet.img.complete && pet.img.naturalWidth > 0;
+    return shared.ragdoll !== false && !!pet.body && pet.hasParts;
+  }
+
+  // Ragdoll switched off: the parts are drawn in the standing pose, rigid.
+  function drawStanding(pet) {
+    buildBody(pet);
+    if (!pet.body.parts) return;
+    const s = shared.pets[pet.index];
+    pet.body.box.x = s.x; pet.body.box.y = s.y;
+    pet.body.snapToPose();
+    pet.placed = false;
+    drawBody(pet);
   }
 
   function outfitSig(pet) {
@@ -191,21 +233,22 @@
     return artRev + '|' + pet.usingFallbackArt + '|' + JSON.stringify(sel) + JSON.stringify(col);
   }
 
-  // Slice the finished sprite (body + clothes) into the ragdoll's parts. Only
-  // redone when the art or the outfit changes.
+  // Cut the clothes up along the parts' regions and hand them to the ragdoll
+  // with the part art. Only redone when the art or the outfit changes.
   function buildBody(pet) {
     const sig = outfitSig(pet);
     if (sig === pet.artSig) return;
     pet.artSig = sig;
     pet.needsDraw = true;
     const dpr = window.devicePixelRatio || 1;
-    const k = pet.h / SRC_H;
-    const comp = document.createElement('canvas');
-    comp.width = Math.round(SRC_W * k * dpr);
-    comp.height = Math.round(SRC_H * k * dpr);
-    const cctx = comp.getContext('2d');
-    paintSprite(pet, cctx, 0, 0, comp.width, comp.height);
-    pet.body.buildArt(comp);
+    const cs = (pet.h / SRC_H) * dpr;
+    const cloth = document.createElement('canvas');
+    cloth.width = Math.round(SRC_W * cs);
+    cloth.height = Math.round(SRC_H * cs);
+    if (typeof window.drawOutfitOverlay === 'function') {
+      window.drawOutfitOverlay(cloth.getContext('2d'), 'stand', 0, 0, cloth.width, cloth.height, pet.index);
+    }
+    pet.body.buildArt(pet.partImgs, cloth, cs);
   }
 
   // Feed the scene's state to one pet's skeleton.
