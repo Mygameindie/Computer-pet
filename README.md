@@ -209,6 +209,10 @@ standing on. Only one of the two panels is open at a time.
 
 ---
 
+## Clothes
+
+See `clothing_template/README.md`: draw on `clothing_template/clothing_template.png`, and `clothing_template/clothing_guide.png` shows which part of the body each area of a garment moves with.
+
 ## Ragdoll art
 
 The pet is drawn from separate part files in `images/parts/`, all 851 × 1134,

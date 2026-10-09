@@ -569,7 +569,10 @@
     // size as the scaled 851×1134 sprite — its pixels are handed to whichever
     // part's region they fall in, so a sleeve moves with the arm.
     // cs: canvas pixels per source pixel.
-    buildArt(imgs, cloth, cs) {
+    // hang (optional): the shape of the clothes that hang from the hips (a
+    // skirt, a dress). Below the hips those go with the body instead of being
+    // split between the legs, so the legs swing underneath them.
+    buildArt(imgs, cloth, cs, hang) {
       const CW = Math.round(CFG.SRC_W * cs), CH = Math.round(CFG.SRC_H * cs);
       const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w); c.height = Math.max(1, h); return c; };
       const mkRead = (w, h) => { const c = mk(w, h); return { c, x: c.getContext('2d', { willReadFrequently: true }) }; };
@@ -674,10 +677,26 @@
           if (part.region) {
             w.x.globalCompositeOperation = 'destination-in';
             shape(w.x, part.region);
+            if (part.drop && hang) {
+              w.x.globalCompositeOperation = 'destination-out';
+              w.x.drawImage(hang, 0, 0);
+            }
           } else if (part.rest) {
-            // The body takes whatever no other part claimed.
+            // The body takes whatever no other part claimed...
             w.x.globalCompositeOperation = 'destination-out';
             for (const o of regionParts) shape(w.x, o.region);
+            // ...plus whatever hangs from the hips over the legs.
+            if (hang) {
+              const h = mkRead(CW, CH);
+              h.x.drawImage(cloth, 0, 0);
+              h.x.globalCompositeOperation = 'destination-in';
+              h.x.drawImage(hang, 0, 0);
+              const legs = mkRead(CW, CH);
+              for (const o of regionParts) if (o.drop) shape(legs.x, o.region);
+              h.x.drawImage(legs.c, 0, 0);
+              w.x.globalCompositeOperation = 'source-over';
+              w.x.drawImage(h.c, 0, 0);
+            }
           } else {
             w.x.clearRect(0, 0, CW, CH);
           }

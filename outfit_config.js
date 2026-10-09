@@ -31,6 +31,12 @@
 //  troll-mode blower is held under the garment it swaps to the _w art; if the
 //  _w image doesn't exist the garment just stays on its normal art.
 //
+//  SKIRTS AND DRESSES: anything below the hips is normally split down the
+//  middle and carried by the two legs, which suits pants. A skirt or dress
+//  would tear, so mark it `hangs: true` (a whole category, like dress below,
+//  or one item: { id: "skirt2", hangs: true }) and it hangs from the hips in
+//  one piece while the legs swing underneath.
+//
 //  This is a plain JS file (no network/JSON loading) so it can't glitch or
 //  fail to load mid-game — it's the smoothest, simplest setup.
 // ===========================================================
@@ -49,7 +55,7 @@ window.OUTFIT_CONFIG = {
     { key: "onepieceUnderwear", label: "One-Piece Underwear",       z: 65  },
     { key: "top",               label: "Top",                       z: 120 },
     { key: "bottom",            label: "Pants / Skirt",             z: 110 },
-    { key: "dress",             label: "Dress",                     z: 130 },
+    { key: "dress",             label: "Dress",                     z: 130, hangs: true },
     { key: "bodysuit",          label: "Bodysuit",                  z: 128 },
     { key: "shoes",             label: "Shoes",                     z: 90  },
     { key: "glove",             label: "Glove",                     z: 140 },
@@ -64,7 +70,7 @@ window.OUTFIT_CONFIG = {
     bottomUnderwear:   ["bottomunderwear1", "bottomunderwear2", "bottomunderwear3", "bottomunderwear4"],
     onepieceUnderwear: ["onepieceunderwear1"],
     top:               ["top1"],
-    bottom:            ["pants1", "skirt1"],
+    bottom:            ["pants1", { id: "skirt1", hangs: true }],
     dress:             ["dress1"],
     bodysuit:          ["bodysuit1"],
     shoes:             ["shoes1"],

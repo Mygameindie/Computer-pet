@@ -255,10 +255,16 @@
     const cloth = document.createElement('canvas');
     cloth.width = Math.round(SRC_W * cs);
     cloth.height = Math.round(SRC_H * cs);
+    // What hangs from the hips (skirts, dresses) instead of splitting between
+    // the legs: only its shape is needed, the colours come from `cloth`.
+    const hang = document.createElement('canvas');
+    hang.width = cloth.width;
+    hang.height = cloth.height;
     if (typeof window.drawOutfitOverlay === 'function') {
       window.drawOutfitOverlay(cloth.getContext('2d'), 'stand', 0, 0, cloth.width, cloth.height, pet.index);
+      window.drawOutfitOverlay(hang.getContext('2d'), 'stand', 0, 0, cloth.width, cloth.height, pet.index, it => it.hangs);
     }
-    pet.body.buildArt(pet.partImgs, cloth, cs);
+    pet.body.buildArt(pet.partImgs, cloth, cs, hang);
   }
 
   // Feed the scene's state to one pet's skeleton.

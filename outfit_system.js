@@ -115,6 +115,7 @@
       id: String(id),
       label: entry.label || humanize(id),
       prefix: String(entry.prefix || id),
+      hangs: entry.hangs,
     };
   }
 
@@ -132,7 +133,7 @@
     : FALLBACK_CONFIG;
 
   const cats = cfg.categories.map(c => ({
-    key: c.key, label: c.label || c.key, z: Number(c.z) || 100,
+    key: c.key, label: c.label || c.key, z: Number(c.z) || 100, hangs: !!c.hangs,
   }));
 
   // Both pets share the same dress-up system. Character 2 (index 1) reads its
@@ -151,7 +152,9 @@
         if (!Array.isArray(list)) return;
         list.forEach(entry => {
           const it = normItem(entry);
-          if (it) catalog[p][c.key].items[it.id] = { id: it.id, label: it.label, img: img(`${it.prefix}.png`) };
+          // `hangs`: hangs from the hips (skirt, dress) instead of being split
+          // between the legs. Set per item, or for a whole category.
+          if (it) catalog[p][c.key].items[it.id] = { id: it.id, label: it.label, img: img(`${it.prefix}.png`), hangs: it.hangs === undefined ? c.hangs : !!it.hangs };
         });
       });
     });
@@ -566,7 +569,8 @@
     updateButtonLabel();
   };
 
-  window.drawOutfitOverlay = function (ctx, state, x, y, w, h, petIndex) {
+  // `only` (optional): draw just the items it returns true for.
+  window.drawOutfitOverlay = function (ctx, state, x, y, w, h, petIndex, only) {
     const p = typeof petIndex === "number" ? petIndex : activePet();
     const catalog = window.dressUpCatalog[p] || window.dressUpCatalog[0] || {};
     let drew = false;
@@ -575,6 +579,7 @@
       if (id === 0 || id === "0") return;
       const it = catalog[k] && catalog[k].items && catalog[k].items[id];
       if (!it || !it.img || it.img._failed) return;
+      if (only && !only(it)) return;
       const hex = COLORS[(window.clothingColors[p] && window.clothingColors[p][k]) || DEFAULT_COLOR] || null;
       const drawImg = hex ? tintedImage(it.img, hex) : it.img;
       if (safeDraw(ctx, drawImg, x, y, w, h)) drew = true;
