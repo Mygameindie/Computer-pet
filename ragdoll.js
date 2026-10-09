@@ -36,6 +36,7 @@
   const GRAVITY = 2600;           // px/s², the same as main.js, so a falling box and a falling limb agree
   const DAMPING = 0.92;           // share of a joint's speed (relative to the box) kept per step
   const DAMPING_STILL = 0.75;     // the same while held and the cursor is still
+  const BLOW_BAND = 14;            // source px of a skirt's top (its waistband) that stays put when it blows
   const SKIRT_FROM = 250;          // px/s (default size) falling before the skirt starts to lift
   const SKIRT_FULL = 1400;         // px/s at which it is blown right up
   const SKIRT_WIDEN = 0.7;         // how much wider it billows, fully blown
@@ -594,7 +595,10 @@
     // split between the legs, so the legs swing underneath them.
     // over / under (optional): clothes carried by the body but drawn over the
     // chest (bra straps, so they don't bounce with it) or under it.
-    buildArt(imgs, cloth, cs, hang, over, under) {
+    // blow (optional): the skirts and dresses that blow up while falling; below
+    // their waistband (blowFrom, source px, or BLOW_BAND under their top) they
+    // become the `skirt` part.
+    buildArt(imgs, cloth, cs, hang, over, under, blow, blowFrom) {
       const CW = Math.round(CFG.SRC_W * cs), CH = Math.round(CFG.SRC_H * cs);
       const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w); c.height = Math.max(1, h); return c; };
       const mkRead = (w, h) => { const c = mk(w, h); return { c, x: c.getContext('2d', { willReadFrequently: true }) }; };
@@ -657,6 +661,19 @@
       };
 
       const regionParts = CFG.parts.filter(p => p.region && imgs[p.file]);
+      // The blowing part of a skirt: its pixels below the waistband line.
+      let blowMask = null, blowY = 0;
+      if (blow && cloth) {
+        const bm = mkRead(CW, CH);
+        bm.x.drawImage(blow, 0, 0);
+        const bb = bboxOf(bm.x);
+        if (bb) {
+          blowY = blowFrom != null ? Math.round(blowFrom * cs) : bb.y0 + Math.round(BLOW_BAND * cs);
+          bm.x.globalCompositeOperation = 'destination-in';
+          bm.x.fillRect(0, blowY, CW, CH - blowY);
+          blowMask = bm.c;
+        }
+      }
       const carried = CFG.parts.filter(p => p.carry && imgs[p.file]);
       const bodyPart = CFG.parts.find(p => p.rest);
       const bodyImg = bodyPart && imgs[bodyPart.file];
@@ -713,12 +730,37 @@
               const g = Math.max(1, Math.round(2 * cs));
               for (const [dx, dy] of [[0, 0], [g, 0], [-g, 0], [0, g], [0, -g]]) w.x.drawImage(hang, dx, dy);
             }
+            if (blowMask) {
+              w.x.globalCompositeOperation = 'destination-out';
+              w.x.drawImage(blowMask, 0, 0);
+            }
           } else if (part.rest) {
             // The body takes whatever no other part claimed...
             w.x.globalCompositeOperation = 'destination-out';
             for (const o of regionParts) shape(w.x, o.region);
-            // (What hangs from the hips over the legs is its own part, the
-            // skirt, built after this loop.)
+            // ...plus whatever hangs from the hips over the legs...
+            if (hang) {
+              const h = mkRead(CW, CH);
+              h.x.drawImage(cloth, 0, 0);
+              h.x.globalCompositeOperation = 'destination-in';
+              h.x.drawImage(hang, 0, 0);
+              const legs = mkRead(CW, CH);
+              for (const o of regionParts) if (o.drop) shape(legs.x, o.region);
+              h.x.drawImage(legs.c, 0, 0);
+              w.x.globalCompositeOperation = 'source-over';
+              w.x.drawImage(h.c, 0, 0);
+            }
+            // ...and a blowing skirt's waistband. (Below that it is the skirt
+            // part, built after this loop.)
+            if (blowMask) {
+              const t = mkRead(CW, CH);
+              t.x.drawImage(blow, 0, 0);
+              // Cut along the line, not by the skirt's own soft edge, or a
+              // faint ghost of its hem stays behind when it lifts.
+              t.x.clearRect(0, blowY, CW, CH - blowY);
+              w.x.globalCompositeOperation = 'source-over';
+              w.x.drawImage(t.c, 0, 0);
+            }
             if (under) {
               w.x.globalCompositeOperation = 'destination-over';
               w.x.drawImage(under, 0, 0);
@@ -744,30 +786,27 @@
           restAngle: Math.atan2(ch.y - pv.y, ch.x - pv.x),
         });
       }
-      // The skirt: whatever hangs from the hips over the legs, in one piece.
-      // It turns with the body like the body does, and is drawn right after
-      // it, over the legs. While the pet falls it flares up (see draw()).
-      if (hang && cloth) {
+      // The skirt: the part of a blowing garment below its waistband, in one
+      // piece. It turns with the body and is drawn right after it, over the
+      // legs. While the pet falls it flares up from the waistband (see draw()).
+      if (blowMask) {
+        // `blow` holds the blowing clothes on their own (not in `cloth`), so
+        // whatever is worn under the skirt is still there when it lifts.
         const h = mkRead(CW, CH);
-        h.x.drawImage(cloth, 0, 0);
+        h.x.drawImage(blow, 0, 0);
         h.x.globalCompositeOperation = 'destination-in';
-        h.x.drawImage(hang, 0, 0);
-        const legs = mkRead(CW, CH);
-        const legParts = regionParts.filter(o => o.drop);
-        // Reaching 3 px above the hip line, so it overlaps the waist the body
-        // carries and no seam shows where the two meet.
-        for (const o of legParts) shape(legs.x, Object.assign({}, o.region, { y0: o.region.y0 - 3 }));
-        h.x.drawImage(legs.c, 0, 0);
-        const b = bboxOf(h.x);
-        if (b) {
-          const c = mk(b.x1 - b.x0, b.y1 - b.y0);
-          c.getContext('2d').drawImage(h.c, -b.x0, -b.y0);
+        // From 3 px above the waistband line, so it overlaps what the body
+        // keeps and no seam shows where the two meet.
+        h.x.fillRect(0, blowY - 3, CW, CH - blowY + 3);
+        const bx = bboxOf(h.x);
+        if (bx) {
+          const c = mk(bx.x1 - bx.x0, bx.y1 - bx.y0);
+          c.getContext('2d').drawImage(h.c, -bx.x0, -bx.y0);
           const pv = CFG.particles.P, ch = CFG.particles.N;
-          const hipY = Math.min(...legParts.map(o => o.region.y0));
           const at = out.findIndex(o => o.id === 'body') + 1;
           out.splice(at, 0, {
-            id: 'skirt', pivot: 'P', child: 'N', canvas: c, flare: hipY,
-            ox: pv.x * cs - b.x0, oy: pv.y * cs - b.y0,
+            id: 'skirt', pivot: 'P', child: 'N', canvas: c, flare: blowY / cs,
+            ox: pv.x * cs - bx.x0, oy: pv.y * cs - bx.y0,
             restAngle: Math.atan2(ch.y - pv.y, ch.x - pv.x),
           });
         }

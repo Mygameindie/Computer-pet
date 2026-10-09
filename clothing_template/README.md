@@ -30,8 +30,9 @@ Tips:
 - **Skirts and dresses** would be split between the legs and tear, so mark them `hangs: true`
   in `outfit_config.js`. Then everything below the hips hangs from the body in one piece and
   the legs swing underneath. The whole Dress category, and `skirt1`, are set up that way already.
-  While the pet falls, the part below the hips billows out and lifts (the faster it falls, the
-  more), then settles back once it lands.
+  Mark a skirt `blows: true` instead and, while the pet falls, everything below its waistband
+  billows out and lifts (the faster it falls, the more), then settles back once it lands.
+  `skirt1` and the Dress category (from y = 820, its waist: `blows: 820`) are set up that way.
 - **Extra layers (optional).** One garment can have two more files with the same name plus an ending.
   Both move with the **body** (never with the chest, arms or legs):
   - `<name>_over.png`: drawn **over** the chest. Use it for bra straps: drawn in the main file,

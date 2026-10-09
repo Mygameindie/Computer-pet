@@ -117,6 +117,7 @@
       prefix: String(entry.prefix || id),
       hangs: entry.hangs,
       stiff: entry.stiff,
+      blows: entry.blows,
     };
   }
 
@@ -134,7 +135,7 @@
     : FALLBACK_CONFIG;
 
   const cats = cfg.categories.map(c => ({
-    key: c.key, label: c.label || c.key, z: Number(c.z) || 100, hangs: !!c.hangs,
+    key: c.key, label: c.label || c.key, z: Number(c.z) || 100, hangs: !!c.hangs, blows: c.blows,
   }));
 
   // Both pets share the same dress-up system. Character 2 (index 1) reads its
@@ -165,6 +166,10 @@
             // `stiff`: one solid piece (a sports bra) that would tear if cut up
             // along the body: kept whole on the body, over the chest.
             stiff: !!it.stiff,
+            // `blows`: a skirt or dress that blows up while the pet falls (it
+            // also hangs). true = from just under its top; a number = from that
+            // height on the canvas (a dress: its waist).
+            blows: it.blows === undefined ? c.blows : it.blows,
           };
         });
       });

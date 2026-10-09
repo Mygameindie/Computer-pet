@@ -37,6 +37,12 @@
 //  or one item: { id: "skirt2", hangs: true }) and it hangs from the hips in
 //  one piece while the legs swing underneath.
 //
+//  BLOWING: `blows: true` makes a skirt blow up while the pet falls (it hangs
+//  from the hips too): everything below its waistband billows and lifts. For a
+//  dress use a number, the canvas height its skirt starts at (blows: 820), or
+//  the whole dress would lift. Skirts and dresses are set up this way already;
+//  `hangs: true` alone (the panties) hangs without blowing.
+//
 //  STIFF: a garment that is one solid piece over the chest (a sports bra)
 //  would tear where the bouncing chest meets the body. Mark it
 //  { id: "top1", stiff: true } and it stays whole on the body.
@@ -59,7 +65,7 @@ window.OUTFIT_CONFIG = {
     { key: "onepieceUnderwear", label: "One-Piece Underwear",       z: 65  },
     { key: "top",               label: "Top",                       z: 120 },
     { key: "bottom",            label: "Pants / Skirt",             z: 110 },
-    { key: "dress",             label: "Dress",                     z: 130, hangs: true },
+    { key: "dress",             label: "Dress",                     z: 130, blows: 820 },
     { key: "bodysuit",          label: "Bodysuit",                  z: 128 },
     { key: "shoes",             label: "Shoes",                     z: 90  },
     { key: "glove",             label: "Glove",                     z: 140 },
@@ -74,7 +80,7 @@ window.OUTFIT_CONFIG = {
     bottomUnderwear:   [{ id: "bottomunderwear1", hangs: true }, "bottomunderwear2", "bottomunderwear3", "bottomunderwear4"],
     onepieceUnderwear: ["onepieceunderwear1"],
     top:               [{ id: "top1", stiff: true }],
-    bottom:            ["pants1", { id: "skirt1", hangs: true }],
+    bottom:            ["pants1", { id: "skirt1", blows: true }],
     dress:             ["dress1"],
     bodysuit:          ["bodysuit1"],
     shoes:             ["shoes1"],
