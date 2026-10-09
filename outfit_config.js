@@ -116,11 +116,12 @@ window.OUTFIT_CONFIG = {
 
   defaults: {
     pet1: {
-      onepieceUnderwear: "onepieceunderwear1",
-      glove: "glove1",
+      top: "top1",
+      topUnderwear: "topunderwear1",
+      bottomUnderwear: "bottomunderwear1",
+      bottom: "skirt1",
+      socks: "socks1",
       shoes: "shoes1",
-      ears: "ears1",
-      bunnysuitbow: "bunnysuitbow1",
     },
     pet2: {
       bottomUnderwear: "boxers1_2",
