@@ -52,6 +52,7 @@
   const SKEL = Object.keys(CFG.particles);
   const SOFT = Object.keys(CFG.soft);
   const ALL = SKEL.concat(SOFT);
+  const ARM_LIMITS = CFG.limits.filter(L => L.tip === 'HL' || L.tip === 'HR');
 
   const wrap = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 
@@ -266,6 +267,10 @@
         this.floor();
       }
       this.pinJoint();
+      // The arms get the last word: the bones solved after their limit could
+      // carry an arm over the head or into the body, and once it was there the
+      // limits pulled it the wrong way and the body went spinning.
+      for (const lim of ARM_LIMITS) this.limit(lim, true);
 
       // Joint friction: a loose limb's swing about its joint dies down instead
       // of whipping on, which is most of what makes a real body look heavy.
@@ -312,8 +317,11 @@
     // config) and the BODY is swung to respect it, so a pet picked up by the hand
     // hangs with that arm raised rather than bent back. A limb with no `held`
     // range is left alone while its end is held.
-    limit(L) {
+    limit(L, last) {
       const tipHeld = this.pin && this.pin.name === L.tip;
+      // On the last pass only free arms are fixed (a held arm is handled by
+      // swinging the body, which needs the bone solve that follows it).
+      if (last && tipHeld) return;
       let lo = L.lo, hi = L.hi;
       if (tipHeld) {
         // Only the side named in heldLo/heldHi is widened (the arm may go further
