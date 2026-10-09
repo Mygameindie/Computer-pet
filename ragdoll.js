@@ -858,16 +858,20 @@
         };
         const a = onBody(L.neck), b = onArm(L.arm);
         // A raised arm lifts its shoulder up to the neck, and the line shrinks
-        // toward a dot; fade it out as it gets that short.
+        // toward a dot; fade it out as it gets that short. Past straight up the
+        // arm's own edge takes over and the line would curl into a hook: gone by 60 degrees up.
         const len = Math.hypot(b[0] - a[0], b[1] - a[1]) / k;
-        const alpha = Math.max(0, Math.min(1, (len - 10) / 12));
+        const def = CFG.parts.find(p => p.id === L.part);
+        const raise = (def.lift || 1) * wrap(this.ang(t.pivot, def.child) - (this.restAng(t.pivot, def.child) + th)) / DEG;
+        const alpha = Math.max(0, Math.min(1, (len - 10) / 12, (60 - raise) / 15));
         if (alpha <= 0) continue;
         const c1 = onBody(L.ctrl), c2 = onArm(L.ctrl);
         const c = [(c1[0] + c2[0]) / 2, (c1[1] + c2[1]) / 2];
         ctx.save();
-        ctx.globalAlpha = alpha;
+        // Fade by thinning, not by transparency: a half-transparent outline
+        // shows up as a grey smudge on the skin.
         ctx.strokeStyle = '#000';
-        ctx.lineWidth = L.w * k;
+        ctx.lineWidth = L.w * k * alpha;
         ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(a[0] - originX, a[1] - originY);

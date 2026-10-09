@@ -68,8 +68,8 @@
   // hand: the arm may be raised further (or it couldn't hang from it), but it
   // may not be lowered any further, or it would swing into the body.
   const limits = [
-    { pivot: 'SL',   tip: 'HL', lo: -40, hi: 90, heldHi: 90, frame: 'torso' },
-    { pivot: 'SR',   tip: 'HR', lo: -90, hi: 40, heldLo: -90, frame: 'torso' },
+    { pivot: 'SL',   tip: 'HL', lo: -40, hi: 90, heldHi: 115, frame: 'torso' },
+    { pivot: 'SR',   tip: 'HR', lo: -90, hi: 40, heldLo: -115, frame: 'torso' },
     { pivot: 'HipL', tip: 'FL', lo: -12, hi: 50, frame: 'torso' },
     { pivot: 'HipR', tip: 'FR', lo: -50, hi: 12, frame: 'torso' },
     { pivot: 'N',    tip: 'Hd', lo: -30, hi: 30, heldLo: -30, heldHi: 30, frame: 'torso' },
@@ -120,8 +120,8 @@
   ];
 
   const shoulderLines = [
-    { part: 'arm_L', neck: [380, 605], ctrl: [363, 605], arm: [349, 612], w: 7.5 },
-    { part: 'arm_R', neck: [470, 605], ctrl: [487, 605], arm: [501, 612], w: 7.5 },
+    { part: 'arm_L', neck: [380, 605], ctrl: [352, 606], arm: [326, 627], w: 6.5 },
+    { part: 'arm_R', neck: [470, 605], ctrl: [498, 606], arm: [524, 627], w: 6.5 },
   ];
 
   // A raised arm lifts its shoulder: the whole arm (with the shoulder lump it
