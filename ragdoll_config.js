@@ -28,10 +28,10 @@
     N:    { x: 425, y: 608,  r: 30,  k: 0.50, m: 2.5, wake: 0.30 },    // neck
     P:    { x: 425, y: 858,  r: 40,  k: 0.55, m: 3.0, wake: 0.12 },    // pelvis
     Hd:   { x: 425, y: 483,  r: 105, k: 0.30, m: 2.0, wake: 0.45 },    // head centre
-    SL:   { x: 352, y: 642,  r: 25,  k: 0.50, m: 1.5, wake: 0.30 },    // shoulders (where the arm meets the body, not at the neck)
-    SR:   { x: 498, y: 642,  r: 25,  k: 0.50, m: 1.5, wake: 0.30 },
-    HipL: { x: 398, y: 866,  r: 25,  k: 0.55, m: 2.0, wake: 0.12 },    // hips
-    HipR: { x: 452, y: 866,  r: 25,  k: 0.55, m: 2.0, wake: 0.12 },
+    SL:   { x: 370, y: 630,  r: 25,  k: 0.50, m: 1.5, wake: 0.30 },    // shoulders (where the arm meets the body, not at the neck)
+    SR:   { x: 480, y: 630,  r: 25,  k: 0.50, m: 1.5, wake: 0.30 },
+    HipL: { x: 390, y: 866,  r: 25,  k: 0.55, m: 2.0, wake: 0.12 },    // hips
+    HipR: { x: 460, y: 866,  r: 25,  k: 0.55, m: 2.0, wake: 0.12 },
     HL:   { x: 150, y: 775,  r: 40,  k: 0.16, m: 0.6, wake: 0.55 },    // hands
     HR:   { x: 700, y: 775,  r: 40,  k: 0.16, m: 0.6, wake: 0.55 },
     FL:   { x: 375, y: 1060, r: SOLE_Y - 1060, k: 0.65, m: 1.0, wake: 0 },   // feet
