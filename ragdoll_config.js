@@ -99,14 +99,14 @@
     { id: 'head',  file: 'head',  carry: { t: 'rect', x0: 370, y0: 594, x1: 480, y1: 614 }, carryBelow: true, pivot: 'N', child: 'Hd', region: { t: 'rect', x0: 0, y0: 0, x1: SRC_W, y1: 606 } },
   ];
 
-  // Outline strokes added to the torso only while an arm has swung away from it.
-  // At rest the arm's own shoulder covers that edge of the body; once the arm
-  // moves off, the torso would be left with a raw skin edge and no outline, so a
-  // line is faded in along it (from `from` to `to`, in source px) as the arm
-  // turns from 20 to 40 degrees away from standing.
-  const edges = [
-    { pivot: 'SL', tip: 'HL', from: [372, 596], to: [372, 647], w: 9.5 },
-    { pivot: 'SR', tip: 'HR', from: [478, 596], to: [478, 647], w: 9.5 },
+  // The shoulder line: from the base of the neck (on the body) over the top of the
+  // shoulder to the top edge of the arm. In the art that line is half body, half
+  // arm, so once the arm turns the two halves part; this draws it again every
+  // frame, bending to wherever the arm is. `ctrl` shapes the curve at rest (it
+  // moves half with the body, half with the arm). Source px.
+  const shoulderLines = [
+    { part: 'arm_L', neck: [380, 605], ctrl: [363, 605], arm: [349, 612], w: 7.5 },
+    { part: 'arm_R', neck: [470, 605], ctrl: [487, 605], arm: [501, 612], w: 7.5 },
   ];
 
   // A raised arm lifts its shoulder: the whole arm (with the shoulder lump it
@@ -115,7 +115,7 @@
   // so it costs nothing in the physics.
   const shoulderLift = { up: 16, in: 5, from: 10, full: 90 };
 
-  const config = { shoulderLift, SRC_W, SRC_H, SOLE_Y, particles, soft, rigid, limits, edges, parts };
+  const config = { shoulderLift, SRC_W, SRC_H, SOLE_Y, particles, soft, rigid, limits, shoulderLines, parts };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = config;
   root.RAGDOLL_CONFIG = config;

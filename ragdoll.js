@@ -509,6 +509,7 @@
       if (!this.parts) return;
       const inv = 1 / dpr;
       const th = this.frameAngle('torso');
+      const placed = {};                   // where each part was drawn, for the shoulder lines
       for (const part of this.parts) {
         const a = this.p[part.pivot], b = this.p[part.child];
         let ax = a.x, ay = a.y, ang;
@@ -540,28 +541,37 @@
         ctx.rotate(ang);
         ctx.drawImage(part.canvas, -part.ox * inv, -part.oy * inv, part.canvas.width * inv, part.canvas.height * inv);
         ctx.restore();
-        if (part.id === 'body') this.drawEdges(ctx, originX, originY, th);
+        placed[part.id] = { x: ax, y: ay, ang, pivot: part.pivot };
+        if (part.id === 'body') this.drawShoulders(ctx, originX, originY, th, placed);
       }
     }
 
-    // The outline that closes the torso where an arm has moved off it.
-    drawEdges(ctx, originX, originY, th) {
-      const N = CFG.particles.N, n = this.p.N;
-      for (const e of CFG.edges || []) {
-        const base = this.restAng(e.pivot, e.tip) + th;
-        const d = Math.abs(wrap(this.ang(e.pivot, e.tip) - base)) / DEG;
-        const a = Math.max(0, Math.min(1, (d - 20) / 20));
-        if (a <= 0) continue;
+    // Redraw each shoulder line from the neck (on the body) to the arm, wherever
+    // the arm has gone. Drawn over the body, under the chest and head.
+    drawShoulders(ctx, originX, originY, th, placed) {
+      const N = CFG.particles.N, n = this.p.N, k = this.k;
+      const onBody = q => {
+        const dx = (q[0] - N.x) * k, dy = (q[1] - N.y) * k;
+        return [n.x + dx * Math.cos(th) - dy * Math.sin(th), n.y + dx * Math.sin(th) + dy * Math.cos(th)];
+      };
+      for (const L of CFG.shoulderLines || []) {
+        const t = placed[L.part];
+        if (!t) continue;
+        const P = CFG.particles[t.pivot];
+        const onArm = q => {
+          const dx = (q[0] - P.x) * k, dy = (q[1] - P.y) * k;
+          return [t.x + dx * Math.cos(t.ang) - dy * Math.sin(t.ang), t.y + dx * Math.sin(t.ang) + dy * Math.cos(t.ang)];
+        };
+        const a = onBody(L.neck), b = onArm(L.arm);
+        const c1 = onBody(L.ctrl), c2 = onArm(L.ctrl);
+        const c = [(c1[0] + c2[0]) / 2, (c1[1] + c2[1]) / 2];
         ctx.save();
-        ctx.globalAlpha = a;
-        ctx.translate(n.x - originX, n.y - originY);
-        ctx.rotate(th);
         ctx.strokeStyle = '#000';
-        ctx.lineWidth = e.w * this.k;
+        ctx.lineWidth = L.w * k;
         ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.moveTo((e.from[0] - N.x) * this.k, (e.from[1] - N.y) * this.k);
-        ctx.lineTo((e.to[0] - N.x) * this.k, (e.to[1] - N.y) * this.k);
+        ctx.moveTo(a[0] - originX, a[1] - originY);
+        ctx.quadraticCurveTo(c[0] - originX, c[1] - originY, b[0] - originX, b[1] - originY);
         ctx.stroke();
         ctx.restore();
       }
