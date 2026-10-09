@@ -71,6 +71,7 @@
       this.airborne = false;
       this.stiffness = 1;
       this.groundT = 0;                    // seconds on the floor since it was last held or airborne
+      this.up = null;                      // getting up: how far the standing pose is still turned/shifted
       this.pin = null;
       this.settled = false;
       this.acc = 0;
@@ -110,6 +111,7 @@
     }
 
     snapToPose() {
+      this.up = null;
       for (const n of SKEL) {
         const t = this.target(n);
         this.p[n] = { x: t.x, y: t.y, px: t.x, py: t.y };
@@ -122,9 +124,21 @@
       this.settled = true;
     }
 
+    // Where joint n would be standing. While getting up, that standing pose is
+    // turned by `up.a` about the pelvis and shifted by `up.ox/oy`, both shrinking
+    // to nothing, so the pet rises from wherever it lies instead of being yanked
+    // straight to its feet.
     target(n) {
       const r = this.rest[n];
-      return { x: this.box.x + r.x, y: this.box.y + r.y };
+      const up = this.up;
+      if (!up) return { x: this.box.x + r.x, y: this.box.y + r.y };
+      const pr = this.rest.P;
+      const dx = r.x - pr.x, dy = r.y - pr.y;
+      const c = Math.cos(up.a), si = Math.sin(up.a);
+      return {
+        x: this.box.x + pr.x + up.ox + dx * c - dy * si,
+        y: this.box.y + pr.y + up.oy + dx * si + dy * c,
+      };
     }
 
     // ---- Frames ----------------------------------------------------------
@@ -221,6 +235,28 @@
       if (want < this.stiffness) this.stiffness += (want - this.stiffness) * Math.min(1, dt * 14);
       else this.stiffness = Math.min(want, this.stiffness + GET_UP_RATE * dt);
       const s = this.stiffness;
+
+      // Getting up: start from the pose it is lying in and turn upright the
+      // short way round at a steady pace. Pulled straight to its standing pose,
+      // a pet lying down was flung up off the floor and, if it lay head-down,
+      // swung most of the way round to get there.
+      if (this.held || this.airborne || lying || s >= 1 && !this.up) {
+        if (this.held || this.airborne || lying) this.up = null;
+      } else if (!this.up) {
+        const pr = this.rest.P;
+        const a = wrap(this.frameAngle('torso'));
+        const ox = this.p.P.x - (this.box.x + pr.x), oy = this.p.P.y - (this.box.y + pr.y);
+        this.up = { a, ox, oy, a0: a, ox0: ox, oy0: oy, s0: Math.min(s, 0.95) };
+      }
+      if (this.up) {
+        // Turned and shifted back in step with the stiffness coming back, so
+        // the body can follow it the whole way rather than being snapped up
+        // once it is stiff enough to.
+        const up = this.up;
+        const left = 1 - Math.max(0, Math.min(1, (s - up.s0) / (1 - up.s0)));
+        up.a = up.a0 * left; up.ox = up.ox0 * left; up.oy = up.oy0 * left;
+        if (left === 0) this.up = null;
+      }
 
       // The box speed is only refreshed when the box moves, so let it fade once
       // the box has stopped (a few frames of grace for uneven state updates).
@@ -426,13 +462,16 @@
           turn(q, 'x', 'y'); turn(q, 'px', 'py');
         }
       } else {
-        // While held, the same for a limb pushed back inside its range (except
+        // While held, and on the last pass for the arms, the same for a limb
+        // pushed back inside its range: that pass pushed a hand lying on the
+        // floor along by a few pixels every step, which slid the whole body
+        // away across the floor. (Except
         // the head resting on the floor: there the floor and the neck limit take
         // turns moving it, and carrying the speed along rocked the body). Not
         // while standing up, or the limits hold the pet a few degrees off upright.
         const nx = piv.x + Math.cos(a) * len, ny = piv.y + Math.sin(a) * len;
         const headDown = L.tip === 'Hd' && tip.y >= this.floorY - this.rest.Hd.r - 1;
-        if (this.held && !headDown) { tip.px += nx - tip.x; tip.py += ny - tip.y; }
+        if ((this.held || last) && !headDown) { tip.px += nx - tip.x; tip.py += ny - tip.y; }
         tip.x = nx; tip.y = ny;
       }
     }
