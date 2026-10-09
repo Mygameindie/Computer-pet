@@ -84,10 +84,20 @@
     { id: 'body',  file: 'body',  pivot: 'N', child: 'P', rest: true },
     { id: 'chest_L', file: 'chest_L', optional: true, pivot: 'N', child: 'P', offset: 'CL', region: { t: 'ellipse', cx: 381, cy: 676, rx: 54, ry: 56 } },
     { id: 'chest_R', file: 'chest_R', optional: true, pivot: 'N', child: 'P', offset: 'CR', region: { t: 'ellipse', cx: 469, cy: 676, rx: 54, ry: 56 } },
-    { id: 'head',  file: 'head',  pivot: 'N', child: 'Hd', region: { t: 'rect', x0: 0, y0: 0, x1: SRC_W, y1: 606 } },
+    { id: 'head',  file: 'head',  carry: { t: 'rect', x0: 370, y0: 594, x1: 480, y1: 614 }, carryBelow: true, pivot: 'N', child: 'Hd', region: { t: 'rect', x0: 0, y0: 0, x1: SRC_W, y1: 606 } },
   ];
 
-  const config = { SRC_W, SRC_H, SOLE_Y, particles, soft, rigid, limits, parts };
+  // Outline strokes added to the torso only while an arm has swung away from it.
+  // At rest the arm's own shoulder covers that edge of the body; once the arm
+  // moves off, the torso would be left with a raw skin edge and no outline, so a
+  // line is faded in along it (from `from` to `to`, in source px) as the arm
+  // turns from 20 to 40 degrees away from standing.
+  const edges = [
+    { pivot: 'SL', tip: 'HL', from: [372, 603], to: [372, 647], w: 9.5 },
+    { pivot: 'SR', tip: 'HR', from: [478, 603], to: [478, 647], w: 9.5 },
+  ];
+
+  const config = { SRC_W, SRC_H, SOLE_Y, particles, soft, rigid, limits, edges, parts };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = config;
   root.RAGDOLL_CONFIG = config;

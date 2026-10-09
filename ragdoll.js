@@ -371,20 +371,24 @@
         if (!img) continue;
 
         const art = mkRead(CW, CH);
-        art.x.drawImage(img, 0, 0, CW, CH);
-        if (part.rest) {
-          // The lumps that travel with the limbs are taken out of the torso...
-          art.x.globalCompositeOperation = 'destination-out';
-          for (const o of carried) shape(art.x, o.carry);
-          art.x.globalCompositeOperation = 'source-over';
-        } else if (part.carry && bodyImg) {
-          // ...and put on top of the limb that carries them.
+        const putCarry = () => {
           art.x.save();
           art.x.beginPath();
           art.x.rect(part.carry.x0 * cs, part.carry.y0 * cs, (part.carry.x1 - part.carry.x0) * cs, (part.carry.y1 - part.carry.y0) * cs);
           art.x.clip();
           art.x.drawImage(bodyImg, 0, 0, CW, CH);
           art.x.restore();
+        };
+        if (part.carry && part.carryBelow && bodyImg) putCarry();
+        art.x.drawImage(img, 0, 0, CW, CH);
+        if (part.rest) {
+          // The lumps that travel with the limbs are taken out of the torso...
+          art.x.globalCompositeOperation = 'destination-out';
+          for (const o of carried) shape(art.x, o.carry);
+          art.x.globalCompositeOperation = 'source-over';
+        } else if (part.carry && !part.carryBelow && bodyImg) {
+          // ...and put on top of the limb that carries them.
+          putCarry();
         }
         let box = bboxOf(art.x);
 
@@ -447,6 +451,30 @@
         ctx.translate(ax - originX, ay - originY);
         ctx.rotate(ang);
         ctx.drawImage(part.canvas, -part.ox * inv, -part.oy * inv, part.canvas.width * inv, part.canvas.height * inv);
+        ctx.restore();
+        if (part.id === 'body') this.drawEdges(ctx, originX, originY, th);
+      }
+    }
+
+    // The outline that closes the torso where an arm has moved off it.
+    drawEdges(ctx, originX, originY, th) {
+      const N = CFG.particles.N, n = this.p.N;
+      for (const e of CFG.edges || []) {
+        const base = this.restAng(e.pivot, e.tip) + th;
+        const d = Math.abs(wrap(this.ang(e.pivot, e.tip) - base)) / DEG;
+        const a = Math.max(0, Math.min(1, (d - 20) / 20));
+        if (a <= 0) continue;
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.translate(n.x - originX, n.y - originY);
+        ctx.rotate(th);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = e.w * this.k;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo((e.from[0] - N.x) * this.k, (e.from[1] - N.y) * this.k);
+        ctx.lineTo((e.to[0] - N.x) * this.k, (e.to[1] - N.y) * this.k);
+        ctx.stroke();
         ctx.restore();
       }
     }
