@@ -39,6 +39,7 @@
   const HELD_STILL_STEPS = 30;    // steps (half a second) without the box moving before that kicks in
 
   const FLOOR_FRICTION = 0.6;     // sideways speed kept per step while touching the floor
+  const FLOOR_SINK = 40;          // px below the floor past which a joint is lifted out with no speed
   const ITERATIONS = 8;
   const STIFF_HELD = 0.012;       // dangling from the cursor
   const STIFF_AIR = 0.03;         // in the air after a throw
@@ -381,10 +382,17 @@
     }
 
     floor() {
+      // While the cursor holds the pet it just hangs, over the taskbar if need
+      // be. Dragged along the floor, the floor's grip rolled the body round the
+      // held point like a wheel, so it spun the whole time it was carried.
+      if (this.held) return;
       for (const n of ALL) {
         const j = this.p[n];
         const lim = this.floorY - this.rest[n].r;
         if (j.y > lim) {
+          // Deep below the floor (let go of while hanging over the taskbar):
+          // lift it out without turning the lift into an upward throw.
+          if (j.y - lim > FLOOR_SINK) j.py -= j.y - lim;
           j.y = lim;
           // Friction: scrub sideways speed while lying or standing on the floor.
           j.px = j.x - (j.x - j.px) * FLOOR_FRICTION;
