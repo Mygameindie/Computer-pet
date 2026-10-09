@@ -362,6 +362,9 @@
       };
 
       const regionParts = CFG.parts.filter(p => p.region && imgs[p.file]);
+      const carried = CFG.parts.filter(p => p.carry && imgs[p.file]);
+      const bodyPart = CFG.parts.find(p => p.rest);
+      const bodyImg = bodyPart && imgs[bodyPart.file];
       const out = [];
       for (const part of CFG.parts) {
         const img = imgs[part.file];
@@ -369,6 +372,20 @@
 
         const art = mkRead(CW, CH);
         art.x.drawImage(img, 0, 0, CW, CH);
+        if (part.rest) {
+          // The lumps that travel with the limbs are taken out of the torso...
+          art.x.globalCompositeOperation = 'destination-out';
+          for (const o of carried) shape(art.x, o.carry);
+          art.x.globalCompositeOperation = 'source-over';
+        } else if (part.carry && bodyImg) {
+          // ...and put on top of the limb that carries them.
+          art.x.save();
+          art.x.beginPath();
+          art.x.rect(part.carry.x0 * cs, part.carry.y0 * cs, (part.carry.x1 - part.carry.x0) * cs, (part.carry.y1 - part.carry.y0) * cs);
+          art.x.clip();
+          art.x.drawImage(bodyImg, 0, 0, CW, CH);
+          art.x.restore();
+        }
         let box = bboxOf(art.x);
 
         // The clothes that belong to this part.
