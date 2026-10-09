@@ -20,6 +20,16 @@
   const FALLBACK_ASPECT = 400 / 450;
   const ALPHA_THRESHOLD = 10;      // a pixel counts as "the pet" above this alpha
 
+  // The ragdoll's limbs swing outside the pet's box, so the canvas is bigger
+  // than the box by PAD on the left, right and top, and by PAD_BOTTOM below it
+  // (a pet picked up by the hand dangles beneath its own box; the floor is what
+  // stops it when it's on the ground). The canvas is shifted back by the same
+  // amount, so the box itself doesn't move.
+  const PAD = 150;
+  const PAD_BOTTOM = 170;
+  const SRC_H = (window.RAGDOLL_CONFIG && window.RAGDOLL_CONFIG.SRC_H) || 1134;
+  const SRC_W = (window.RAGDOLL_CONFIG && window.RAGDOLL_CONFIG.SRC_W) || 851;
+
   // Base art per character. Character 2 falls back to character 1's art with a
   // hue shift, matching the pet template's behaviour when _2 art is missing.
   const BASE_SRC = ['images/base.png', 'images/base_2.png'];
@@ -41,6 +51,7 @@
     gravity: true,
     outfit: null,
     outfitRev: 0,
+    ragdoll: true,
     ui: { dressupOpen: false, presetsOpen: false },
   };
   let applyingRemote = false;   // guards against echoing state back to main
@@ -68,13 +79,19 @@
       usingFallbackArt: false,
       w: PET_HEIGHT * FALLBACK_ASPECT,
       h: PET_HEIGHT,
+      cw: 0, ch: 0,                       // canvas size in CSS px (box + PAD)
+      body: window.PetRagdoll ? new window.PetRagdoll.Ragdoll() : null,
+      placed: false,                      // has the skeleton been put at the pet's position yet?
+      artSig: null,                       // what the sliced art was built from
+      lastBox: null,
     });
   }
 
   // ---- Art loading --------------------------------------------------------
+  let artRev = 0;                  // bumped whenever any picture finishes loading
   function loadBase(pet) {
     const im = new Image();
-    im.onload = () => { sizePet(pet); requestRedraw(); };
+    im.onload = () => { sizePet(pet); artRev++; requestRedraw(); };
     im.onerror = () => {
       // No art for character 2 — reuse character 1's and tint it so the two
       // pets are still visually distinct.
@@ -82,7 +99,7 @@
         pet.usingFallbackArt = true;
         pet.img = null;
         const alt = new Image();
-        alt.onload = () => { pet.img = alt; sizePet(pet); requestRedraw(); };
+        alt.onload = () => { pet.img = alt; sizePet(pet); artRev++; requestRedraw(); };
         alt.src = BASE_SRC[0];
         return;
       }
@@ -104,11 +121,16 @@
     // Back the canvas at device resolution so the sprite stays crisp on HiDPI
     // and Retina screens, but keep the CSS box in layout pixels.
     const dpr = window.devicePixelRatio || 1;
-    pet.canvas.width = Math.round(pet.w * dpr);
-    pet.canvas.height = Math.round(pet.h * dpr);
-    pet.canvas.style.width = pet.w + 'px';
-    pet.canvas.style.height = pet.h + 'px';
+    pet.cw = pet.w + PAD * 2;
+    pet.ch = pet.h + PAD + PAD_BOTTOM;
+    pet.canvas.width = Math.round(pet.cw * dpr);
+    pet.canvas.height = Math.round(pet.ch * dpr);
+    pet.canvas.style.width = pet.cw + 'px';
+    pet.canvas.style.height = pet.ch + 'px';
+    pet.canvas.style.left = -PAD + 'px';
+    pet.canvas.style.top = -PAD + 'px';
     pet.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (pet.body) { pet.body.layout(pet.h / SRC_H); pet.placed = false; pet.artSig = null; }
 
     // The main process needs the real drawn size: it is what decides where the
     // floor is and how far right the pet may travel.
@@ -125,28 +147,131 @@
     requestAnimationFrame(() => { redrawQueued = false; drawAll(); });
   }
 
+  // The static sprite: base art plus clothes, drawn into any 2D context at
+  // (x, y) with size w × h.
+  function paintSprite(pet, ctx, x, y, w, h) {
+    ctx.save();
+    ctx.filter = pet.usingFallbackArt ? FALLBACK_FILTER : 'none';
+    if (pet.img && pet.img.complete && pet.img.naturalWidth) {
+      ctx.drawImage(pet.img, x, y, w, h);
+    }
+    ctx.restore();
+
+    // Clothes on top, layered by z and tinted, straight from the outfit system.
+    if (typeof window.drawOutfitOverlay === 'function') {
+      window.drawOutfitOverlay(ctx, 'stand', x, y, w, h, pet.index);
+    }
+  }
+
   function drawAll() {
     pets.forEach(pet => {
       const { ctx } = pet;
-      ctx.clearRect(0, 0, pet.w, pet.h);
-      if (!shared.pets[pet.index] || !shared.pets[pet.index].visible) return;
+      const s = shared.pets[pet.index];
+      if (!s || !s.visible) { ctx.clearRect(0, 0, pet.cw, pet.ch); return; }
 
-      ctx.save();
-      ctx.filter = pet.usingFallbackArt ? FALLBACK_FILTER : 'none';
-      if (pet.img && pet.img.complete && pet.img.naturalWidth) {
-        ctx.drawImage(pet.img, 0, 0, pet.w, pet.h);
-      }
-      ctx.restore();
+      if (ragdollOn(pet)) { wakeRagdoll(); return; }
 
-      // Clothes on top, layered by z and tinted, straight from the outfit system.
-      if (typeof window.drawOutfitOverlay === 'function') {
-        window.drawOutfitOverlay(ctx, 'stand', 0, 0, pet.w, pet.h, pet.index);
-      }
+      ctx.clearRect(0, 0, pet.cw, pet.ch);
+      paintSprite(pet, ctx, PAD, PAD, pet.w, pet.h);
     });
   }
 
+  // ---- Ragdoll ------------------------------------------------------------
+  // The skeleton hangs off the pet's box, which main.js still owns: gravity,
+  // throws and the floor are decided there, and the ragdoll only decides how
+  // the body behaves while that happens. It simulates only while something is
+  // moving, so a pet standing still costs nothing, as before.
+  function ragdollOn(pet) {
+    return shared.ragdoll !== false && !!pet.body && pet.img && pet.img.complete && pet.img.naturalWidth > 0;
+  }
+
+  function outfitSig(pet) {
+    const sel = (window.selectedClothes || [])[pet.index];
+    const col = (window.clothingColors || [])[pet.index];
+    return artRev + '|' + pet.usingFallbackArt + '|' + JSON.stringify(sel) + JSON.stringify(col);
+  }
+
+  // Slice the finished sprite (body + clothes) into the ragdoll's parts. Only
+  // redone when the art or the outfit changes.
+  function buildBody(pet) {
+    const sig = outfitSig(pet);
+    if (sig === pet.artSig) return;
+    pet.artSig = sig;
+    pet.needsDraw = true;
+    const dpr = window.devicePixelRatio || 1;
+    const k = pet.h / SRC_H;
+    const comp = document.createElement('canvas');
+    comp.width = Math.round(SRC_W * k * dpr);
+    comp.height = Math.round(SRC_H * k * dpr);
+    const cctx = comp.getContext('2d');
+    paintSprite(pet, cctx, 0, 0, comp.width, comp.height);
+    pet.body.buildArt(comp);
+  }
+
+  // Feed the scene's state to one pet's skeleton.
+  function syncBody(pet, now) {
+    const s = shared.pets[pet.index];
+    const body = pet.body;
+    const floorY = (typeof s.floorY === 'number') ? s.floorY : origin.y + origin.h;
+    const held = (drag.active && drag.index === pet.index) || !!s.dragging;
+
+    // A big jump that isn't a drag is a teleport (reset, un-hide): don't make
+    // the body fly across the screen to catch up.
+    const lb = pet.lastBox;
+    const jumped = lb && !held && Math.hypot(s.x - lb.x, s.y - lb.y) > 250;
+    if (!pet.placed || jumped) {
+      body.box.x = s.x; body.box.y = s.y;
+      body.boxVel.x = 0; body.boxVel.y = 0;
+      body.snapToPose();
+      pet.placed = true;
+    }
+    pet.lastBox = { x: s.x, y: s.y };
+
+    body.setFloor(floorY);
+    body.setBox(s.x, s.y, now);
+    const airborne = shared.gravity && !held && (s.y + pet.h) < floorY - 1;
+    body.setMode(held, airborne);
+  }
+
+  function drawBody(pet) {
+    const { ctx } = pet;
+    const s = shared.pets[pet.index];
+    ctx.clearRect(0, 0, pet.cw, pet.ch);
+    pet.body.draw(ctx, s.x - PAD, s.y - PAD, window.devicePixelRatio || 1);
+  }
+
+  let ragdollRaf = 0;
+  let ragdollLast = 0;
+  function wakeRagdoll() {
+    if (ragdollRaf) return;
+    ragdollLast = performance.now();
+    ragdollRaf = requestAnimationFrame(ragdollFrame);
+  }
+
+  function ragdollFrame(now) {
+    ragdollRaf = 0;
+    const dt = Math.min((now - ragdollLast) / 1000, 0.1);
+    ragdollLast = now;
+    let busy = false;
+
+    pets.forEach(pet => {
+      const s = shared.pets[pet.index];
+      if (!s || !s.visible || !ragdollOn(pet)) return;
+      buildBody(pet);
+      if (!pet.body.parts) return;
+      syncBody(pet, now);
+      const wasSettled = pet.body.settled;
+      const active = pet.body.tick(dt);
+      // Draw while moving, and once more on the frame it comes to rest.
+      if (active || !wasSettled || pet.needsDraw !== false) { drawBody(pet); pet.needsDraw = false; }
+      if (active) { busy = true; pet.needsDraw = true; }
+    });
+
+    if (busy) ragdollRaf = requestAnimationFrame(ragdollFrame);
+  }
+
   // Re-draw whenever a clothing image finishes loading.
-  window.addEventListener('outfit:art-changed', requestRedraw);
+  window.addEventListener('outfit:art-changed', () => { artRev++; requestRedraw(); });
 
   // ---- Layout -------------------------------------------------------------
   function layout() {
@@ -195,11 +320,11 @@
   // transform on the canvas — so map through the measured rect instead of
   // assuming 1:1, or the pet becomes ungrabbable for the length of the bounce.
   function opaqueAt(pet, cx, cy, rect) {
-    const rw = (rect && rect.width) || pet.w;
-    const rh = (rect && rect.height) || pet.h;
-    cx = cx * (pet.w / rw);
-    cy = cy * (pet.h / rh);
-    if (cx < 0 || cy < 0 || cx >= pet.w || cy >= pet.h) return false;
+    const rw = (rect && rect.width) || pet.cw;
+    const rh = (rect && rect.height) || pet.ch;
+    cx = cx * (pet.cw / rw);
+    cy = cy * (pet.ch / rh);
+    if (cx < 0 || cy < 0 || cx >= pet.cw || cy >= pet.ch) return false;
     const dpr = window.devicePixelRatio || 1;
     try {
       const d = pet.ctx.getImageData(Math.floor(cx * dpr), Math.floor(cy * dpr), 1, 1).data;
@@ -208,7 +333,7 @@
       // Canvas unexpectedly tainted — fall back to an inset bounding box so the
       // pet stays draggable rather than becoming impossible to grab.
       const m = 0.12;
-      return cx > pet.w * m && cx < pet.w * (1 - m) && cy > pet.h * m && cy < pet.h * (1 - m);
+      return cx > PAD + pet.w * m && cx < PAD + pet.w * (1 - m) && cy > PAD + pet.h * m && cy < PAD + pet.h * (1 - m);
     }
   }
 
@@ -284,6 +409,9 @@
     drag.trail = [{ t: e.timeStamp, x: s.x, y: s.y }];
 
     pet.el.classList.add('dragging');
+    // The skeleton picks up whichever joint is nearest the cursor, so grabbing
+    // a hand hangs the pet by its hand.
+    if (pet.body && ragdollOn(pet)) { pet.body.grab(g.x, g.y); wakeRagdoll(); }
     api.grabPet(pet.index);        // physics lets go while the cursor holds it
     // Pointer capture keeps move/up events coming to this window even after the
     // cursor leaves it — that's what allows dragging onto another display.
@@ -318,6 +446,7 @@
     // Hand the flick over to gravity: the pet keeps the momentum of the throw
     // and falls from wherever it was released.
     const { vx, vy } = throwVelocity();
+    if (pet && pet.body) { pet.body.release(); wakeRagdoll(); }
     api.dropPet(drag.index, vx, vy);
     drag.active = false;
     drag.index = -1;
@@ -430,7 +559,9 @@
     s.pets.forEach((ps, i) => {
       if (!ps || !pets[i] || !ps.landedAt || ps.landedAt === seenLanding[i]) return;
       seenLanding[i] = ps.landedAt;
-      if (ps.visible) squash(pets[i], ps.impact || 0);
+      if (!ps.visible) return;
+      if (ragdollOn(pets[i])) { pets[i].body.impact(ps.impact || 0); wakeRagdoll(); }
+      else squash(pets[i], ps.impact || 0);
     });
 
     layout();
