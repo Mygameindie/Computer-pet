@@ -557,20 +557,25 @@
         ctx.drawImage(part.canvas, -part.ox * inv, -part.oy * inv, part.canvas.width * inv, part.canvas.height * inv);
         ctx.restore();
         placed[part.id] = { x: ax, y: ay, ang, pivot: part.pivot };
-        if (part.id === 'body') this.drawShoulders(ctx, originX, originY, th, placed);
+        if (part.id === 'body') this.drawShoulders(ctx, originX, originY, th, placed, 'armpits');
       }
+      // The shoulder lines go on last: the head picture's neck covers the top of
+      // the shoulders, and drawn under it the lines vanished, leaving the arms
+      // looking stuck straight into the chest.
+      this.drawShoulders(ctx, originX, originY, th, placed, 'shoulders');
     }
 
     // Redraw each shoulder line from the neck (on the body) to the arm, wherever
-    // the arm has gone. Drawn over the body, under the chest and head.
-    drawShoulders(ctx, originX, originY, th, placed) {
+    // the arm has gone. `which` is 'armpits' (drawn over the body, under the
+    // chest) or 'shoulders' (drawn over everything, see draw()).
+    drawShoulders(ctx, originX, originY, th, placed, which) {
       const N = CFG.particles.N, n = this.p.N, k = this.k;
       const onBody = q => {
         const dx = (q[0] - N.x) * k, dy = (q[1] - N.y) * k;
         return [n.x + dx * Math.cos(th) - dy * Math.sin(th), n.y + dx * Math.sin(th) + dy * Math.cos(th)];
       };
       // Armpits first, so the shoulder line is drawn over their top.
-      for (const L of CFG.armpitLines || []) {
+      for (const L of which === 'armpits' ? CFG.armpitLines || [] : []) {
         const t = placed[L.part];
         if (!t) continue;
         const P = CFG.particles[t.pivot];
@@ -609,7 +614,7 @@
         ctx.restore();
       }
 
-      for (const L of CFG.shoulderLines || []) {
+      for (const L of which === 'shoulders' ? CFG.shoulderLines || [] : []) {
         const t = placed[L.part];
         if (!t) continue;
         const P = CFG.particles[t.pivot];
@@ -618,9 +623,15 @@
           return [t.x + dx * Math.cos(t.ang) - dy * Math.sin(t.ang), t.y + dx * Math.sin(t.ang) + dy * Math.cos(t.ang)];
         };
         const a = onBody(L.neck), b = onArm(L.arm);
+        // A raised arm lifts its shoulder up to the neck, and the line shrinks
+        // toward a dot; fade it out as it gets that short.
+        const len = Math.hypot(b[0] - a[0], b[1] - a[1]) / k;
+        const alpha = Math.max(0, Math.min(1, (len - 10) / 12));
+        if (alpha <= 0) continue;
         const c1 = onBody(L.ctrl), c2 = onArm(L.ctrl);
         const c = [(c1[0] + c2[0]) / 2, (c1[1] + c2[1]) / 2];
         ctx.save();
+        ctx.globalAlpha = alpha;
         ctx.strokeStyle = '#000';
         ctx.lineWidth = L.w * k;
         ctx.lineCap = 'round';
