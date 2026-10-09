@@ -42,6 +42,12 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'pet', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
 ]);
 
+// Chromium on Windows works out which windows are covered and stops drawing
+// them. A transparent, click-through overlay can be judged covered when it
+// isn't, which froze the pets mid-animation; it is always on top, so turn the
+// check off.
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+
 /** @type {Map<number, BrowserWindow>} display id -> overlay window */
 const windows = new Map();
 let tray = null;
