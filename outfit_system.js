@@ -328,13 +328,16 @@
     } catch (_) {
       return source;
     }
-    const out = new Image();
-    out.src = cv.toDataURL("image/png");
-    tintCache.set(key, out);
-    return out;
+    // Hand back the canvas itself: it can be drawn straight away. Converting it
+    // to a data-URL <img> meant the first draw after a colour change hit an
+    // image that hadn't decoded yet, got skipped, and — since the pet only
+    // redraws on demand — the clothing stayed invisible.
+    tintCache.set(key, cv);
+    return cv;
   }
   function safeDraw(ctx, image, x, y, w, h) {
-    if (!image || image._failed || !image.complete || !image.naturalWidth) return false;
+    if (!image) return false;
+    if (!(image instanceof HTMLCanvasElement) && (image._failed || !image.complete || !image.naturalWidth)) return false;
     ctx.drawImage(image, x, y, w, h);
     return true;
   }
