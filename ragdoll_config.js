@@ -22,8 +22,8 @@
     N:    { x: 425, y: 608,  r: 30,  k: 0.50 },    // neck
     P:    { x: 425, y: 858,  r: 40,  k: 0.55 },    // pelvis
     Hd:   { x: 425, y: 483,  r: 105, k: 0.30 },    // head centre
-    SL:   { x: 385, y: 634,  r: 25,  k: 0.50 },    // shoulders
-    SR:   { x: 465, y: 634,  r: 25,  k: 0.50 },
+    SL:   { x: 364, y: 642,  r: 25,  k: 0.50 },    // shoulders (where the arm meets the body, not at the neck)
+    SR:   { x: 486, y: 642,  r: 25,  k: 0.50 },
     HipL: { x: 398, y: 848,  r: 25,  k: 0.55 },    // hips
     HipR: { x: 452, y: 848,  r: 25,  k: 0.55 },
     HL:   { x: 150, y: 775,  r: 40,  k: 0.16 },    // hands
