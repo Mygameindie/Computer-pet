@@ -65,8 +65,8 @@
   // `held` is how far an arm may be raised or lowered while the pet is being
   // carried by that hand, which has to be more or it couldn't hang from it.
   const limits = [
-    { pivot: 'SL',   tip: 'HL', lo: -65, hi: 90, held: 105, frame: 'torso' },
-    { pivot: 'SR',   tip: 'HR', lo: -90, hi: 65, held: 105, frame: 'torso' },
+    { pivot: 'SL',   tip: 'HL', lo: -40, hi: 90, held: 105, frame: 'torso' },
+    { pivot: 'SR',   tip: 'HR', lo: -90, hi: 40, held: 105, frame: 'torso' },
     { pivot: 'HipL', tip: 'FL', lo: -12, hi: 50, frame: 'torso' },
     { pivot: 'HipR', tip: 'FR', lo: -50, hi: 12, frame: 'torso' },
     { pivot: 'N',    tip: 'Hd', lo: -30, hi: 30, frame: 'torso' },
