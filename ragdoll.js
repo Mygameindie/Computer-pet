@@ -36,6 +36,7 @@
   const GRAVITY = 2600;           // px/s², the same as main.js, so a falling box and a falling limb agree
   const DAMPING = 0.92;           // share of a joint's speed (relative to the box) kept per step
   const DAMPING_STILL = 0.75;     // the same while held and the cursor is still
+  const HELD_SWING_MAX = 1200;    // px/s (at the default pet size) a held body may move round the held point
   const HELD_STILL_STEPS = 30;    // steps (half a second) without the box moving before that kicks in
 
   const FLOOR_FRICTION = 0.6;     // sideways speed kept per step while touching the floor
@@ -294,7 +295,30 @@
         }
       }
 
+      this.capHeldSwing(dt);
       this.checkSettled();
+    }
+
+    // A body hanging from the cursor swings round the held point like a
+    // pendulum, and a cursor moving in circles can pump it until it loops right
+    // over the top and keeps spinning. To loop, a pendulum this size needs about
+    // 1800 px/s at the bottom, so its speed round the held point is capped below
+    // that: it swings as much as you like but can't go all the way round.
+    capHeldSwing(dt) {
+      if (!this.pin) return;
+      const pj = this.p[this.pin.name];
+      const pvx = pj.x - pj.px, pvy = pj.y - pj.py;
+      const max = HELD_SWING_MAX * dt * this.k / (250 / 1134);
+      for (const n of ALL) {
+        if (n === this.pin.name) continue;
+        const j = this.p[n];
+        const rx = (j.x - j.px) - pvx, ry = (j.y - j.py) - pvy;
+        const sp = Math.hypot(rx, ry);
+        if (sp <= max) continue;
+        const f = max / sp;
+        j.px = j.x - (pvx + rx * f);
+        j.py = j.y - (pvy + ry * f);
+      }
     }
 
     // Every bone length can be kept with the torso turned inside out: a shoulder

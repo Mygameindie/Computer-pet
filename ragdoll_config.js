@@ -70,7 +70,7 @@
     { pivot: 'SR',   tip: 'HR', lo: -90, hi: 40, heldLo: -90, frame: 'torso' },
     { pivot: 'HipL', tip: 'FL', lo: -12, hi: 50, frame: 'torso' },
     { pivot: 'HipR', tip: 'FR', lo: -50, hi: 12, frame: 'torso' },
-    { pivot: 'N',    tip: 'Hd', lo: -30, hi: 30, frame: 'torso' },
+    { pivot: 'N',    tip: 'Hd', lo: -30, hi: 30, heldLo: -30, heldHi: 30, frame: 'torso' },
     { pivot: 'N',    tip: 'Hr', lo: -35, hi: 35, frame: 'head' },
   ];
 
