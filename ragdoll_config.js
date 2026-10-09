@@ -81,8 +81,8 @@
     { id: 'back_hair',  file: 'back_hair',  optional: true, pivot: 'N', child: 'Hr' },
     { id: 'leg_L', file: 'leg_L', carry: { t: 'rect', x0: 340, y0: 869, x1: 425, y1: 900 }, pivot: 'HipL', child: 'FL', region: { t: 'rect', x0: 0,   y0: 868, x1: 425, y1: SRC_H } },
     { id: 'leg_R', file: 'leg_R', carry: { t: 'rect', x0: 425, y0: 869, x1: 510, y1: 900 }, pivot: 'HipR', child: 'FR', region: { t: 'rect', x0: 425, y0: 868, x1: SRC_W, y1: SRC_H } },
-    { id: 'arm_L', file: 'arm_L', carry: { t: 'rect', x0: 340, y0: 590, x1: 367, y1: 662 }, pivot: 'SL', child: 'HL', region: { t: 'rect', x0: 0,   y0: 606, x1: 346,   y1: 846 } },
-    { id: 'arm_R', file: 'arm_R', carry: { t: 'rect', x0: 483, y0: 590, x1: 510, y1: 662 }, pivot: 'SR', child: 'HR', region: { t: 'rect', x0: 505, y0: 606, x1: SRC_W, y1: 846 } },
+    { id: 'arm_L', file: 'arm_L', lift: 1, carry: { t: 'rect', x0: 340, y0: 590, x1: 367, y1: 662 }, pivot: 'SL', child: 'HL', region: { t: 'rect', x0: 0,   y0: 606, x1: 346,   y1: 846 } },
+    { id: 'arm_R', file: 'arm_R', lift: -1, carry: { t: 'rect', x0: 483, y0: 590, x1: 510, y1: 662 }, pivot: 'SR', child: 'HR', region: { t: 'rect', x0: 505, y0: 606, x1: SRC_W, y1: 846 } },
     { id: 'body',  file: 'body',  pivot: 'N', child: 'P', rest: true },
     { id: 'chest_L', file: 'chest_L', optional: true, pivot: 'N', child: 'P', offset: 'CL', region: { t: 'ellipse', cx: 381, cy: 676, rx: 54, ry: 56 } },
     { id: 'chest_R', file: 'chest_R', optional: true, pivot: 'N', child: 'P', offset: 'CR', region: { t: 'ellipse', cx: 469, cy: 676, rx: 54, ry: 56 } },
@@ -95,11 +95,17 @@
   // line is faded in along it (from `from` to `to`, in source px) as the arm
   // turns from 20 to 40 degrees away from standing.
   const edges = [
-    { pivot: 'SL', tip: 'HL', from: [372, 603], to: [372, 647], w: 9.5 },
-    { pivot: 'SR', tip: 'HR', from: [478, 603], to: [478, 647], w: 9.5 },
+    { pivot: 'SL', tip: 'HL', from: [372, 596], to: [372, 647], w: 9.5 },
+    { pivot: 'SR', tip: 'HR', from: [478, 596], to: [478, 647], w: 9.5 },
   ];
 
-  const config = { SRC_W, SRC_H, SOLE_Y, particles, soft, rigid, limits, edges, parts };
+  // A raised arm lifts its shoulder: the whole arm (with the shoulder lump it
+  // carries) is drawn up and a little toward the neck, by up to `up` / `in` source
+  // px, starting once the arm is 10 degrees above standing. Only drawn that way,
+  // so it costs nothing in the physics.
+  const shoulderLift = { up: 16, in: 5, from: 10, full: 90 };
+
+  const config = { shoulderLift, SRC_W, SRC_H, SOLE_Y, particles, soft, rigid, limits, edges, parts };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = config;
   root.RAGDOLL_CONFIG = config;

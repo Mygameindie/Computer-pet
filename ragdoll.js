@@ -459,6 +459,15 @@
           ang = th;
         } else {
           ang = Math.atan2(b.y - a.y, b.x - a.x) - part.restAngle;
+          if (part.lift) {
+            // Raising the arm lifts the shoulder: up the body, and a little inward.
+            const L = CFG.shoulderLift;
+            const raise = part.lift * wrap(this.ang(part.pivot, part.child) - (this.restAng(part.pivot, part.child) + th)) / DEG;
+            const f = Math.max(0, Math.min(1.2, (raise - L.from) / (L.full - L.from)));
+            const up = f * L.up * this.k, inward = f * L.in * this.k * part.lift;
+            ax += Math.sin(th) * up + Math.cos(th) * inward;
+            ay += -Math.cos(th) * up + Math.sin(th) * inward;
+          }
         }
         ctx.save();
         ctx.translate(ax - originX, ay - originY);
