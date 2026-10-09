@@ -20,19 +20,22 @@
   const SOLE_Y = 1085 + LEG_DROP;   // lowest pixel of the feet in the standing pose
 
   // Joints. r = distance from the joint to the floor when lying on it,
-  // k = how hard the joint is pulled back to the standing pose (0..1).
+  // k = how hard the joint is pulled back to the standing pose (0..1),
+  // m = how heavy it is (a heavy torso drags light hands around, not the other
+  // way round), wake = when it joins in while getting up (0 first .. 1 last):
+  // feet plant first, then the hips push up, the chest, the head, the arms last.
   const particles = {
-    N:    { x: 425, y: 608,  r: 30,  k: 0.50 },    // neck
-    P:    { x: 425, y: 858,  r: 40,  k: 0.55 },    // pelvis
-    Hd:   { x: 425, y: 483,  r: 105, k: 0.30 },    // head centre
-    SL:   { x: 364, y: 642,  r: 25,  k: 0.50 },    // shoulders (where the arm meets the body, not at the neck)
-    SR:   { x: 486, y: 642,  r: 25,  k: 0.50 },
-    HipL: { x: 398, y: 848,  r: 25,  k: 0.55 },    // hips
-    HipR: { x: 452, y: 848,  r: 25,  k: 0.55 },
-    HL:   { x: 150, y: 775,  r: 40,  k: 0.16 },    // hands
-    HR:   { x: 700, y: 775,  r: 40,  k: 0.16 },
-    FL:   { x: 375, y: 1060, r: SOLE_Y - 1060, k: 0.65 },   // feet
-    FR:   { x: 475, y: 1060, r: SOLE_Y - 1060, k: 0.65 },
+    N:    { x: 425, y: 608,  r: 30,  k: 0.50, m: 2.5, wake: 0.30 },    // neck
+    P:    { x: 425, y: 858,  r: 40,  k: 0.55, m: 3.0, wake: 0.12 },    // pelvis
+    Hd:   { x: 425, y: 483,  r: 105, k: 0.30, m: 2.0, wake: 0.45 },    // head centre
+    SL:   { x: 364, y: 642,  r: 25,  k: 0.50, m: 1.5, wake: 0.30 },    // shoulders (where the arm meets the body, not at the neck)
+    SR:   { x: 486, y: 642,  r: 25,  k: 0.50, m: 1.5, wake: 0.30 },
+    HipL: { x: 398, y: 848,  r: 25,  k: 0.55, m: 2.0, wake: 0.12 },    // hips
+    HipR: { x: 452, y: 848,  r: 25,  k: 0.55, m: 2.0, wake: 0.12 },
+    HL:   { x: 150, y: 775,  r: 40,  k: 0.16, m: 0.6, wake: 0.55 },    // hands
+    HR:   { x: 700, y: 775,  r: 40,  k: 0.16, m: 0.6, wake: 0.55 },
+    FL:   { x: 375, y: 1060, r: SOLE_Y - 1060, k: 0.65, m: 1.0, wake: 0 },   // feet
+    FR:   { x: 475, y: 1060, r: SOLE_Y - 1060, k: 0.65, m: 1.0, wake: 0 },
   };
 
   // Soft joints: not part of the skeleton but pulled toward a spot on it, so
@@ -41,9 +44,9 @@
   // maxX (optional) limits sideways strays across the body (so the chest can't slide
   // off the torso), gravity scales how much they sag when the pet is limp.
   const soft = {
-    CL: { x: 381, y: 676, r: 15, k: 0.12, anchor: 'torso', max: 26, maxX: 7, gravity: 0.35 },    // chest
-    CR: { x: 469, y: 676, r: 15, k: 0.12, anchor: 'torso', max: 26, maxX: 7, gravity: 0.35 },
-    Hr: { x: 425, y: 950, r: 20, k: 0.09, anchor: 'head',  max: 400 },   // end of the back hair
+    CL: { x: 381, y: 676, r: 15, m: 0.4, k: 0.12, anchor: 'torso', max: 26, maxX: 7, gravity: 0.35 },    // chest
+    CR: { x: 469, y: 676, r: 15, m: 0.4, k: 0.12, anchor: 'torso', max: 26, maxX: 7, gravity: 0.35 },
+    Hr: { x: 425, y: 950, r: 20, m: 0.8, k: 0.09, anchor: 'head',  max: 400 },   // end of the back hair
   };
 
   // Bones that never change length. The torso entries make the neck, shoulders,

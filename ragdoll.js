@@ -39,7 +39,9 @@
   const ITERATIONS = 8;
   const STIFF_HELD = 0.012;       // dangling from the cursor
   const STIFF_AIR = 0.03;         // in the air after a throw
-  const GET_UP_RATE = 1.3;        // stiffness per second once back on the floor
+  const GET_UP_RATE = 0.9;        // stiffness per second once back on the floor
+  const LIE_STILL = 0.4;          // seconds it lies there after landing limp, before getting up
+  const JOINT_FRICTION = 0.9;     // share of a limb's swing (relative to its joint) kept per step while limp
   const SETTLE_DIST = 0.6;        // px from the standing pose that counts as "standing"
   const SETTLE_SPEED = 0.06;      // px/step
   const DEG = Math.PI / 180;
@@ -61,6 +63,7 @@
       this.held = false;
       this.airborne = false;
       this.stiffness = 1;
+      this.groundT = 0;                    // seconds on the floor since it was last held or airborne
       this.pin = null;
       this.settled = false;
       this.acc = 0;
@@ -77,7 +80,7 @@
       if (k === this.k && this._init) return;
       this.k = k;
       const shift = CFG.SRC_H - CFG.SOLE_Y;   // feet stand ON the floor
-      const put = (n, s, kk) => { this.rest[n] = { x: s.x * k, y: (s.y + shift) * k, r: s.r * k, kk }; };
+      const put = (n, s, kk) => { this.rest[n] = { x: s.x * k, y: (s.y + shift) * k, r: s.r * k, kk, im: 1 / (s.m || 1), wake: s.wake || 0 }; };
       for (const n of SKEL) put(n, CFG.particles[n], CFG.particles[n].k);
       for (const n of SOFT) {
         put(n, CFG.soft[n], CFG.soft[n].k);
@@ -198,7 +201,10 @@
     step(dt) {
       // Stiffness: collapses at once when grabbed or thrown, climbs back while
       // the pet is on its feet.
-      const want = this.held ? STIFF_HELD : this.airborne ? STIFF_AIR : 1;
+      // Back on the floor after going limp: lie there a moment, then get up.
+      this.groundT = (this.held || this.airborne) ? 0 : this.groundT + dt;
+      const lying = this.groundT < LIE_STILL && this.stiffness < 0.6;
+      const want = this.held ? STIFF_HELD : this.airborne ? STIFF_AIR : lying ? this.stiffness : 1;
       if (want < this.stiffness) this.stiffness += (want - this.stiffness) * Math.min(1, dt * 14);
       else this.stiffness = Math.min(want, this.stiffness + GET_UP_RATE * dt);
       const s = this.stiffness;
@@ -209,7 +215,12 @@
 
       // A standing pet holds itself up, so gravity only wins as the stiffness
       // drops — otherwise the soft hands would sag below the pose forever.
-      const g = GRAVITY * dt * dt * (1 - s);
+      // Each joint wakes at its own point of the get-up (feet first, arms last).
+      const sOf = n => {
+        const w = this.rest[n].wake;
+        return s >= 1 ? 1 : Math.max(0, Math.min(1, (s - w) / (1 - w)));
+      };
+      const g = GRAVITY * dt * dt;
       const bx = this.boxVel.x * dt, by = this.boxVel.y * dt;
 
       for (const n of ALL) {
@@ -221,13 +232,14 @@
         vy = by + (vy - by) * DAMPING;
         j.px = j.x; j.py = j.y;
         j.x += vx;
-        j.y += vy + g * (this.rest[n].gs === undefined ? 1 : this.rest[n].gs);
+        const lift = SKEL.includes(n) ? 1 - sOf(n) : (1 - s) * (this.rest[n].gs === undefined ? 1 : this.rest[n].gs);
+        j.y += vy + g * lift;
       }
 
       // The balance springs pull the skeleton to the standing pose...
       for (const n of SKEL) {
         const j = this.p[n], t = this.target(n);
-        const a = s * this.rest[n].kk;
+        const a = sOf(n) * this.rest[n].kk;
         j.x += (t.x - j.x) * a;
         j.y += (t.y - j.y) * a;
       }
@@ -248,6 +260,19 @@
       }
       this.pinJoint();
 
+      // Joint friction: a loose limb's swing about its joint dies down instead
+      // of whipping on, which is most of what makes a real body look heavy.
+      if (s < 1) {
+        for (const L of CFG.limits) {
+          const piv = this.p[L.pivot], tip = this.p[L.tip];
+          if (this.pin && this.pin.name === L.tip) continue;
+          const vpx = piv.x - piv.px, vpy = piv.y - piv.py;
+          const rx = (tip.x - tip.px) - vpx, ry = (tip.y - tip.py) - vpy;
+          tip.px = tip.x - (vpx + rx * JOINT_FRICTION);
+          tip.py = tip.y - (vpy + ry * JOINT_FRICTION);
+        }
+      }
+
       this.checkSettled();
     }
 
@@ -263,8 +288,11 @@
       const dx = b.x - a.x, dy = b.y - a.y;
       const d = Math.hypot(dx, dy) || 1e-6;
       const diff = (d - l.len) / d;
-      const pa = this.pin && this.pin.name === l.a, pb = this.pin && this.pin.name === l.b;
-      const wa = pa ? 0 : (pb ? 1 : 0.5), wb = pb ? 0 : (pa ? 1 : 0.5);
+      // Heavier joints move less: split the correction by inverse mass.
+      const ia = (this.pin && this.pin.name === l.a) ? 0 : this.rest[l.a].im;
+      const ib = (this.pin && this.pin.name === l.b) ? 0 : this.rest[l.b].im;
+      const sum = ia + ib || 1;
+      const wa = ia / sum, wb = ib / sum;
       a.x += dx * diff * wa; a.y += dy * diff * wa;
       b.x -= dx * diff * wb; b.y -= dy * diff * wb;
     }
