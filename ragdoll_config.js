@@ -100,7 +100,7 @@
     { limbs: [['SL', 'HL']], from: [372, 596], to: [372, 647], w: 9.5, t0: 20, t1: 40 },
     { limbs: [['SR', 'HR']], from: [478, 596], to: [478, 647], w: 9.5, t0: 20, t1: 40 },
     // the bottom of the pelvis, once either leg has swung away from standing
-    { limbs: [['HipL', 'FL', 1], ['HipR', 'FR', -1]], from: [372, 862], ctrl: [425, 884], to: [478, 862], w: 9.5, t0: 6, t1: 16 },
+    { limbs: [['HipL', 'FL', 1], ['HipR', 'FR', -1]], from: [372, 862], ctrl: [425, 884], to: [478, 862], w: 9.5, t0: 8, t1: 12 },
   ];
 
   // A raised arm lifts its shoulder: the whole arm (with the shoulder lump it
