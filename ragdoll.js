@@ -36,6 +36,10 @@
   const GRAVITY = 2600;           // px/s², the same as main.js, so a falling box and a falling limb agree
   const DAMPING = 0.92;           // share of a joint's speed (relative to the box) kept per step
   const DAMPING_STILL = 0.75;     // the same while held and the cursor is still
+  const SKIRT_FROM = 250;          // px/s (default size) falling before the skirt starts to lift
+  const SKIRT_FULL = 1400;         // px/s at which it is blown right up
+  const SKIRT_WIDEN = 0.7;         // how much wider it billows, fully blown
+  const SKIRT_FOLD = 0.7;          // how much shorter (lifted up toward the hips) it gets, fully blown
   const HELD_SWING_MAX = 1200;    // px/s (at the default pet size) a held body may move round the held point
   const HELD_STILL_STEPS = 30;    // steps (half a second) without the box moving before that kicks in
 
@@ -74,6 +78,7 @@
       this.stiffness = 1;
       this.groundT = 0;                    // seconds on the floor since it was last held or airborne
       this.up = null;                      // getting up: how far the standing pose is still turned/shifted
+      this.skirtLift = 0;                  // 0..1, how far the air has blown the skirt up (see blowSkirt)
       this.pin = null;
       this.settled = false;
       this.acc = 0;
@@ -114,6 +119,7 @@
 
     snapToPose() {
       this.up = null;
+      this.skirtLift = 0;
       for (const n of SKEL) {
         const t = this.target(n);
         this.p[n] = { x: t.x, y: t.y, px: t.x, py: t.y };
@@ -343,7 +349,21 @@
       }
 
       this.capHeldSwing(dt);
+      this.blowSkirt(dt);
       this.checkSettled();
+    }
+
+    // How far the air blows the skirt up (0..1): by how fast the body is moving
+    // feet-first through the air, i.e. along its own downward axis. It flips up
+    // quickly and falls back a little slower.
+    blowSkirt(dt) {
+      const n = this.p.N, pl = this.p.P;
+      const ax = pl.x - n.x, ay = pl.y - n.y, al = Math.hypot(ax, ay) || 1;
+      const v = ((pl.x - pl.px) * ax + (pl.y - pl.py) * ay) / al / dt / (this.k / (250 / 1134));
+      const want = Math.max(0, Math.min(1, (v - SKIRT_FROM) / (SKIRT_FULL - SKIRT_FROM)));
+      const rate = want > this.skirtLift ? 12 : 4;
+      this.skirtLift += (want - this.skirtLift) * Math.min(1, rate * dt);
+      if (this.skirtLift < 0.002) this.skirtLift = 0;
     }
 
     // A body hanging from the cursor swings round the held point like a
@@ -687,25 +707,18 @@
               for (const o of regionParts) if (o.offset) shape(w.x, o.region);
             }
             if (part.drop && hang) {
+              // A couple of pixels wider than the skirt itself, so its soft
+              // edge doesn't leave a ghost outline on the legs.
               w.x.globalCompositeOperation = 'destination-out';
-              w.x.drawImage(hang, 0, 0);
+              const g = Math.max(1, Math.round(2 * cs));
+              for (const [dx, dy] of [[0, 0], [g, 0], [-g, 0], [0, g], [0, -g]]) w.x.drawImage(hang, dx, dy);
             }
           } else if (part.rest) {
             // The body takes whatever no other part claimed...
             w.x.globalCompositeOperation = 'destination-out';
             for (const o of regionParts) shape(w.x, o.region);
-            // ...plus whatever hangs from the hips over the legs.
-            if (hang) {
-              const h = mkRead(CW, CH);
-              h.x.drawImage(cloth, 0, 0);
-              h.x.globalCompositeOperation = 'destination-in';
-              h.x.drawImage(hang, 0, 0);
-              const legs = mkRead(CW, CH);
-              for (const o of regionParts) if (o.drop) shape(legs.x, o.region);
-              h.x.drawImage(legs.c, 0, 0);
-              w.x.globalCompositeOperation = 'source-over';
-              w.x.drawImage(h.c, 0, 0);
-            }
+            // (What hangs from the hips over the legs is its own part, the
+            // skirt, built after this loop.)
             if (under) {
               w.x.globalCompositeOperation = 'destination-over';
               w.x.drawImage(under, 0, 0);
@@ -731,6 +744,35 @@
           restAngle: Math.atan2(ch.y - pv.y, ch.x - pv.x),
         });
       }
+      // The skirt: whatever hangs from the hips over the legs, in one piece.
+      // It turns with the body like the body does, and is drawn right after
+      // it, over the legs. While the pet falls it flares up (see draw()).
+      if (hang && cloth) {
+        const h = mkRead(CW, CH);
+        h.x.drawImage(cloth, 0, 0);
+        h.x.globalCompositeOperation = 'destination-in';
+        h.x.drawImage(hang, 0, 0);
+        const legs = mkRead(CW, CH);
+        const legParts = regionParts.filter(o => o.drop);
+        // Reaching 3 px above the hip line, so it overlaps the waist the body
+        // carries and no seam shows where the two meet.
+        for (const o of legParts) shape(legs.x, Object.assign({}, o.region, { y0: o.region.y0 - 3 }));
+        h.x.drawImage(legs.c, 0, 0);
+        const b = bboxOf(h.x);
+        if (b) {
+          const c = mk(b.x1 - b.x0, b.y1 - b.y0);
+          c.getContext('2d').drawImage(h.c, -b.x0, -b.y0);
+          const pv = CFG.particles.P, ch = CFG.particles.N;
+          const hipY = Math.min(...legParts.map(o => o.region.y0));
+          const at = out.findIndex(o => o.id === 'body') + 1;
+          out.splice(at, 0, {
+            id: 'skirt', pivot: 'P', child: 'N', canvas: c, flare: hipY,
+            ox: pv.x * cs - b.x0, oy: pv.y * cs - b.y0,
+            restAngle: Math.atan2(ch.y - pv.y, ch.x - pv.x),
+          });
+        }
+      }
+
       // The body's over-the-chest layer: a copy of the body's frame drawn after
       // the chest, so it moves with the body but covers the chest.
       if (over && bboxOf(over.getContext('2d', { willReadFrequently: true }))) {
@@ -788,6 +830,16 @@
         ctx.save();
         ctx.translate(ax - originX, ay - originY);
         ctx.rotate(ang);
+        if (part.flare !== undefined && this.skirtLift > 0.002) {
+          // The skirt blown up by the air while falling: it billows out
+          // sideways and its hem lifts toward the hips, the more the faster
+          // it falls.
+          const lift = this.skirtLift;
+          const hy = (part.flare - CFG.particles[part.pivot].y) * this.k;
+          ctx.translate(0, hy);
+          ctx.scale(1 + SKIRT_WIDEN * lift, 1 - SKIRT_FOLD * lift);
+          ctx.translate(0, -hy);
+        }
         ctx.drawImage(part.canvas, -part.ox * inv, -part.oy * inv, part.canvas.width * inv, part.canvas.height * inv);
         ctx.restore();
         placed[part.id] = { x: ax, y: ay, ang, pivot: part.pivot };
