@@ -16,7 +16,7 @@
   const SRC_H = 1134;
   // The legs are drawn this many source px lower than in the part files (the whole
   // leg, hips included, so it still turns about the same spot on the leg).
-  const LEG_DROP = 14;
+  const LEG_DROP = 20;
   const SOLE_Y = 1085 + LEG_DROP;   // lowest pixel of the feet in the standing pose
 
   // Joints. r = distance from the joint to the floor when lying on it,
