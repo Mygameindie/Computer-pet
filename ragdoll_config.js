@@ -35,9 +35,11 @@
   // Soft joints: not part of the skeleton but pulled toward a spot on it, so
   // they lag, overshoot and settle. `anchor` is the frame they hang from.
   // k = spring strength per step, max = furthest they can stray (source px).
+  // maxX (optional) limits sideways strays across the body (so the chest can't slide
+  // off the torso), gravity scales how much they sag when the pet is limp.
   const soft = {
-    CL: { x: 381, y: 676, r: 15, k: 0.12, anchor: 'torso', max: 26 },    // chest
-    CR: { x: 469, y: 676, r: 15, k: 0.12, anchor: 'torso', max: 26 },
+    CL: { x: 381, y: 676, r: 15, k: 0.12, anchor: 'torso', max: 26, maxX: 7, gravity: 0.35 },    // chest
+    CR: { x: 469, y: 676, r: 15, k: 0.12, anchor: 'torso', max: 26, maxX: 7, gravity: 0.35 },
     Hr: { x: 425, y: 950, r: 20, k: 0.09, anchor: 'head',  max: 400 },   // end of the back hair
   };
 

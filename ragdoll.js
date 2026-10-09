@@ -79,7 +79,12 @@
       const shift = CFG.SRC_H - CFG.SOLE_Y;   // feet stand ON the floor
       const put = (n, s, kk) => { this.rest[n] = { x: s.x * k, y: (s.y + shift) * k, r: s.r * k, kk }; };
       for (const n of SKEL) put(n, CFG.particles[n], CFG.particles[n].k);
-      for (const n of SOFT) { put(n, CFG.soft[n], CFG.soft[n].k); this.rest[n].max = CFG.soft[n].max * k; }
+      for (const n of SOFT) {
+        put(n, CFG.soft[n], CFG.soft[n].k);
+        this.rest[n].max = CFG.soft[n].max * k;
+        this.rest[n].maxX = (CFG.soft[n].maxX === undefined ? CFG.soft[n].max : CFG.soft[n].maxX) * k;
+        this.rest[n].gs = CFG.soft[n].gravity === undefined ? 1 : CFG.soft[n].gravity;
+      }
       this.links = CFG.rigid.map(([a, b]) => {
         const d = Math.hypot(this.rest[a].x - this.rest[b].x, this.rest[a].y - this.rest[b].y);
         return { a, b, len: d };
@@ -216,7 +221,7 @@
         vy = by + (vy - by) * DAMPING;
         j.px = j.x; j.py = j.y;
         j.x += vx;
-        j.y += vy + g;
+        j.y += vy + g * (this.rest[n].gs === undefined ? 1 : this.rest[n].gs);
       }
 
       // The balance springs pull the skeleton to the standing pose...
@@ -295,9 +300,17 @@
 
     clampSoft() {
       for (const n of SOFT) {
-        const j = this.p[n], t = this.softTarget(n), max = this.rest[n].max;
-        const dx = j.x - t.x, dy = j.y - t.y, d = Math.hypot(dx, dy);
-        if (d > max) { j.x = t.x + dx / d * max; j.y = t.y + dy / d * max; }
+        const j = this.p[n], t = this.softTarget(n), r = this.rest[n];
+        let dx = j.x - t.x, dy = j.y - t.y;
+        // Measure the stray in the body's own frame: across it (x) and along it (y).
+        const th = this.frameAngle(CFG.soft[n].anchor);
+        const c = Math.cos(th), s = Math.sin(th);
+        let lx = dx * c + dy * s, ly = -dx * s + dy * c;
+        lx = Math.max(-r.maxX, Math.min(r.maxX, lx));
+        const d = Math.hypot(lx, ly);
+        if (d > r.max) { lx *= r.max / d; ly *= r.max / d; }
+        dx = lx * c - ly * s; dy = lx * s + ly * c;
+        j.x = t.x + dx; j.y = t.y + dy;
       }
     }
 
