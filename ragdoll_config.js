@@ -55,8 +55,8 @@
   // the torso. Positive is clockwise on screen. Legs can't cross, and the arm
   // ends are hidden under the body only for moderate turns, so these stay modest.
   const limits = [
-    { pivot: 'SL',   tip: 'HL', lo: -65, hi: 65, frame: 'torso' },
-    { pivot: 'SR',   tip: 'HR', lo: -65, hi: 65, frame: 'torso' },
+    { pivot: 'SL',   tip: 'HL', lo: -35, hi: 45, frame: 'torso' },
+    { pivot: 'SR',   tip: 'HR', lo: -45, hi: 35, frame: 'torso' },
     { pivot: 'HipL', tip: 'FL', lo: -12, hi: 50, frame: 'torso' },
     { pivot: 'HipR', tip: 'FR', lo: -50, hi: 12, frame: 'torso' },
     { pivot: 'N',    tip: 'Hd', lo: -55, hi: 55, frame: 'torso' },
