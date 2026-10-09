@@ -42,7 +42,8 @@ Tips:
 - **Stiff garments.** A garment that covers the chest in one solid piece (a crop top, a tank
   top) would tear where the bouncing chest meets the body. Mark it `stiff: true` in
   `outfit_config.js` (`{ id: "top1", stiff: true }`) and it stays whole on the body,
-  over the chest. The chest doesn't bounce under it.
+  over the chest. The chest doesn't bounce under it. Its sleeves (anything in the blue arm
+  areas) still move with the arms, so draw a top and its sleeves together in one file.
 - The chest wins over the arms: anything inside the pink circles only ever moves with the chest.
 - Give garments an outline (black, like the body art). Colour tinting in the Dress Up panel
   works best on light/white garments.
@@ -63,7 +64,6 @@ so each one shows up in Dress Up as soon as the file exists:
 | Bodysuit | `bodysuit1.png` |
 | Shoes | `shoes1.png` |
 | Glove | `glove1.png` |
-| Sleeves | `sleeves1.png` |
 | Bunnysuit Bow | `bunnysuitbow1.png` |
 | Glasses | `glasses1.png` |
 | Ears | `ears1.png` |

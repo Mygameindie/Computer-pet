@@ -598,7 +598,10 @@
     // blow (optional): the skirts and dresses that blow up while falling; below
     // their waistband (blowFrom, source px, or BLOW_BAND under their top) they
     // become the `skirt` part.
-    buildArt(imgs, cloth, cs, hang, over, under, blow, blowFrom) {
+    // stiff (optional): garments kept whole over the chest (a top): over the
+    // chest they go on the body's over-the-chest layer, but their sleeves and
+    // anything else on the arms, legs or head still go with those parts.
+    buildArt(imgs, cloth, cs, hang, over, under, blow, blowFrom, stiff) {
       const CW = Math.round(CFG.SRC_W * cs), CH = Math.round(CFG.SRC_H * cs);
       const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w); c.height = Math.max(1, h); return c; };
       const mkRead = (w, h) => { const c = mk(w, h); return { c, x: c.getContext('2d', { willReadFrequently: true }) }; };
@@ -734,6 +737,14 @@
               w.x.globalCompositeOperation = 'destination-out';
               w.x.drawImage(blowMask, 0, 0);
             }
+            if (stiff && !part.offset) {
+              const t = mkRead(CW, CH);
+              t.x.drawImage(stiff, 0, 0);
+              t.x.globalCompositeOperation = 'destination-in';
+              shape(t.x, part.region);
+              w.x.globalCompositeOperation = 'source-over';
+              w.x.drawImage(t.c, 0, 0);
+            }
           } else if (part.rest) {
             // The body takes whatever no other part claimed...
             w.x.globalCompositeOperation = 'destination-out';
@@ -814,9 +825,21 @@
 
       // The body's over-the-chest layer: a copy of the body's frame drawn after
       // the chest, so it moves with the body but covers the chest.
-      if (over && bboxOf(over.getContext('2d', { willReadFrequently: true }))) {
+      let overAll = over;
+      if (stiff) {
+        // A stiff garment's share: all of it but what the arms, legs and head took.
+        const t = mkRead(CW, CH);
+        if (over) t.x.drawImage(over, 0, 0);
+        const st = mkRead(CW, CH);
+        st.x.drawImage(stiff, 0, 0);
+        st.x.globalCompositeOperation = 'destination-out';
+        for (const o of regionParts) if (!o.offset) shape(st.x, o.region);
+        t.x.drawImage(st.c, 0, 0);
+        overAll = t.c;
+      }
+      if (overAll && bboxOf(overAll.getContext('2d', { willReadFrequently: true }))) {
         const o = mkRead(CW, CH);
-        o.x.drawImage(over, 0, 0);
+        o.x.drawImage(overAll, 0, 0);
         const b = bboxOf(o.x);
         const c = mk(b.x1 - b.x0, b.y1 - b.y0);
         c.getContext('2d').drawImage(o.c, -b.x0, -b.y0);

@@ -259,7 +259,7 @@
     // the legs: only its shape is needed, the colours come from `cloth`.
     // Plus each garment's optional _over / _under layers (see outfit_system.js).
     const sized = () => { const c = document.createElement('canvas'); c.width = cloth.width; c.height = cloth.height; return c; };
-    const hang = sized(), over = sized(), under = sized(), blow = sized();
+    const hang = sized(), over = sized(), under = sized(), blow = sized(), stiff = sized();
     let blowFrom = Infinity;
     if (typeof window.drawOutfitOverlay === 'function') {
       window.drawOutfitOverlay(cloth.getContext('2d'), 'stand', 0, 0, cloth.width, cloth.height, pet.index, it => !it.stiff && !it.blows);
@@ -271,11 +271,11 @@
         return true;
       });
       window.drawOutfitOverlay(over.getContext('2d'), 'stand', 0, 0, cloth.width, cloth.height, pet.index, null, 'over');
-      // Stiff garments go whole onto the body, over the chest, like _over layers.
-      window.drawOutfitOverlay(over.getContext('2d'), 'stand', 0, 0, cloth.width, cloth.height, pet.index, it => it.stiff);
+      // Stiff garments stay whole over the chest (their sleeves still follow the arms).
+      window.drawOutfitOverlay(stiff.getContext('2d'), 'stand', 0, 0, cloth.width, cloth.height, pet.index, it => it.stiff);
       window.drawOutfitOverlay(under.getContext('2d'), 'stand', 0, 0, cloth.width, cloth.height, pet.index, null, 'under');
     }
-    pet.body.buildArt(pet.partImgs, cloth, cs, hang, over, under, blow, isFinite(blowFrom) ? blowFrom : null);
+    pet.body.buildArt(pet.partImgs, cloth, cs, hang, over, under, blow, isFinite(blowFrom) ? blowFrom : null, stiff);
   }
 
   // Feed the scene's state to one pet's skeleton.
