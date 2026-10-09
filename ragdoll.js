@@ -220,6 +220,7 @@
       for (const n of ['Hd', 'HL', 'HR']) kick(n, 0.35);
       for (const n of ['CL', 'CR']) kick(n, 0.5);
       kick('Hr', 0.3);
+      if (this.p.Tt) kick('Tt', 0.3);
       kick('P', 0.12);
       this.settled = false;
     }
