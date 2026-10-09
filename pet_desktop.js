@@ -261,9 +261,11 @@
     const sized = () => { const c = document.createElement('canvas'); c.width = cloth.width; c.height = cloth.height; return c; };
     const hang = sized(), over = sized(), under = sized();
     if (typeof window.drawOutfitOverlay === 'function') {
-      window.drawOutfitOverlay(cloth.getContext('2d'), 'stand', 0, 0, cloth.width, cloth.height, pet.index);
-      window.drawOutfitOverlay(hang.getContext('2d'), 'stand', 0, 0, cloth.width, cloth.height, pet.index, it => it.hangs);
+      window.drawOutfitOverlay(cloth.getContext('2d'), 'stand', 0, 0, cloth.width, cloth.height, pet.index, it => !it.stiff);
+      window.drawOutfitOverlay(hang.getContext('2d'), 'stand', 0, 0, cloth.width, cloth.height, pet.index, it => it.hangs && !it.stiff);
       window.drawOutfitOverlay(over.getContext('2d'), 'stand', 0, 0, cloth.width, cloth.height, pet.index, null, 'over');
+      // Stiff garments go whole onto the body, over the chest, like _over layers.
+      window.drawOutfitOverlay(over.getContext('2d'), 'stand', 0, 0, cloth.width, cloth.height, pet.index, it => it.stiff);
       window.drawOutfitOverlay(under.getContext('2d'), 'stand', 0, 0, cloth.width, cloth.height, pet.index, null, 'under');
     }
     pet.body.buildArt(pet.partImgs, cloth, cs, hang, over, under);
