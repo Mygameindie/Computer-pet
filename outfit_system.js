@@ -42,6 +42,7 @@
       { key: "top", label: "Top", z: 120 },
       { key: "bottom", label: "Pants / Skirt", z: 110 },
       { key: "dress", label: "Dress", z: 130 },
+      { key: "socks", label: "Socks", z: 85 },
       { key: "shoes", label: "Shoes", z: 90 },
       { key: "hat", label: "Hat", z: 180 },
     ],
