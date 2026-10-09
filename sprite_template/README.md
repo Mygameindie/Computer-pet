@@ -25,6 +25,6 @@ Parts (name each file `<part>.png`, add `_2` for character 2, e.g. `head_2.png`)
 | `forearm_L`, `forearm_R` | elbow to hand | elbow |
 | `head` | head, face, front hair, ears / horns | neck |
 
-Draw order, back to front: back_tail, back_wings, back_hair, thighs, shins, body, upper arms, forearms, head.
+Draw order, back to front: back_hair, back_wings, back_tail, thighs, shins, body, upper arms, forearms, head.
 
 Left / right are the character's own left and right, as seen from the front: the **L** parts are on the viewer's left in the template picture.

@@ -87,10 +87,10 @@
   // hide the end of the arm or leg. Staying behind they'd be left as outline-less
   // blobs when the limb swings away; carried, they stay joined to it.
   const parts = [
-    // Back items, furthest back first: tail, then wings, then hair.
-    { id: 'back_tail',  file: 'back_tail',  optional: true, pivot: 'P', child: 'N' },
-    { id: 'back_wings', file: 'back_wings', optional: true, pivot: 'N', child: 'P' },
+    // Back items, furthest back first: hair, then wings, then tail.
     { id: 'back_hair',  file: 'back_hair',  optional: true, pivot: 'N', child: 'Hr' },
+    { id: 'back_wings', file: 'back_wings', optional: true, pivot: 'N', child: 'P' },
+    { id: 'back_tail',  file: 'back_tail',  optional: true, pivot: 'P', child: 'N' },
     { id: 'leg_L', file: 'leg_L', drop: true, unline: { x0: 340, y0: 790, x1: 425, y1: 846 }, carry: { t: 'rect', x0: 340, y0: 869, x1: 425, y1: 900 }, pivot: 'HipL', child: 'FL', region: { t: 'rect', x0: 0,   y0: 868, x1: 425, y1: SRC_H } },
     { id: 'leg_R', file: 'leg_R', drop: true, unline: { x0: 425, y0: 790, x1: 510, y1: 846 }, carry: { t: 'rect', x0: 425, y0: 869, x1: 510, y1: 900 }, pivot: 'HipR', child: 'FR', region: { t: 'rect', x0: 425, y0: 868, x1: SRC_W, y1: SRC_H } },
     { id: 'arm_L', file: 'arm_L', lift: 1, unline: { x0: 352, y0: 590, x1: 410, y1: 690 }, carry: { t: 'rect', x0: 340, y0: 590, x1: 367, y1: 662 }, pivot: 'SL', child: 'HL', region: { t: 'rect', x0: 0,   y0: 606, x1: 346,   y1: 846 } },

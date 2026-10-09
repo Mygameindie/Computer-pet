@@ -226,7 +226,7 @@ a character without a full set keeps its normal sprite.
 | `back_hair.png` | no | hangs behind the head and sways |
 | `back_wings.png`, `back_tail.png` | no | follow the body |
 
-The back items are layered tail at the very back, then wings, then hair (right behind the head).
+The back items are layered hair at the very back, then wings, then tail (in front of both, still behind the legs and body).
 
 `L` is the left side **of the picture**. Drawn back to front: back parts, legs,
 arms, body, chest, head.
