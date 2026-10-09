@@ -39,6 +39,7 @@
   const HELD_SWING_MAX = 1200;    // px/s (at the default pet size) a held body may move round the held point
   const HELD_STILL_STEPS = 30;    // steps (half a second) without the box moving before that kicks in
 
+  const EDGE_BOUNCE = 0.6;        // share of speed a limb keeps bouncing off the side or top of the screen
   const FLOOR_FRICTION = 0.6;     // sideways speed kept per step while touching the floor
   const FLOOR_SINK = 40;          // px below the floor past which a joint is lifted out with no speed
   const ITERATIONS = 8;
@@ -67,6 +68,7 @@
       this.boxStamp = 0;
       this.idleSteps = 0;                  // steps since the box last moved
       this.floorY = Infinity;
+      this.walls = null;                   // screen edges { left, right, top } the limbs bounce off
       this.held = false;
       this.airborne = false;
       this.stiffness = 1;
@@ -180,6 +182,13 @@
     }
 
     setFloor(y) { if (y !== this.floorY) { this.floorY = y; this.settled = false; } }
+
+    setWalls(left, right, top) {
+      const w = this.walls;
+      if (w && w.left === left && w.right === right && w.top === top) return;
+      this.walls = { left, right, top };
+      this.settled = false;
+    }
 
     // held: the cursor has it. airborne: off the floor with gravity on.
     setMode(held, airborne) {
@@ -310,6 +319,7 @@
         this.keepSides();
         for (const lim of CFG.limits) this.limit(lim);
         this.clampSoft();
+        this.screenEdges();
         this.floor();
       }
       this.pinJoint();
@@ -489,6 +499,30 @@
         if (d > r.max) { lx *= r.max / d; ly *= r.max / d; }
         dx = lx * c - ly * s; dy = lx * s + ly * c;
         j.x = t.x + dx; j.y = t.y + dy;
+      }
+    }
+
+    // The left, right and top edges of the screen: a joint that reaches one
+    // bounces back off it, the way the pet itself bounces off them.
+    screenEdges() {
+      const w = this.walls;
+      if (!w) return;
+      for (const n of ALL) {
+        const j = this.p[n], r = this.rest[n].r;
+        if (j.x < w.left + r) {
+          const v = j.x - j.px;
+          j.x = w.left + r;
+          if (v < 0) j.px = j.x + v * EDGE_BOUNCE;
+        } else if (j.x > w.right - r) {
+          const v = j.x - j.px;
+          j.x = w.right - r;
+          if (v > 0) j.px = j.x + v * EDGE_BOUNCE;
+        }
+        if (j.y < w.top + r) {
+          const v = j.y - j.py;
+          j.y = w.top + r;
+          if (v < 0) j.py = j.y + v * EDGE_BOUNCE;
+        }
       }
     }
 

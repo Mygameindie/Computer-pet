@@ -141,9 +141,9 @@ function clampAll() {
 // moving: once every pet is asleep on the floor the timer stops, so an idle
 // pet costs exactly nothing.
 const GRAVITY = 2600;        // px/s² — a screen-height fall takes about half a second
-const BOUNCE = 0.34;         // share of downward speed kept when it hits the floor
+const BOUNCE = 0.5;          // share of downward speed kept when it hits the floor
 const BOUNCE_CUTOFF = 240;   // px/s — land slower than this and it just stops
-const WALL_BOUNCE = 0.45;    // same, for the left/right edges of the desktop
+const WALL_BOUNCE = 0.7;     // same, for the left/right/top edges of the screen
 const GROUND_FRICTION = 5.5; // e-folds per second while sliding along the floor
 const AIR_DRAG = 0.35;       // ditto, in the air — a throw keeps most of its speed
 const STOP_SPEED = 20;       // px/s — slower than this on the floor is "stopped"
@@ -239,8 +239,8 @@ function stepPhysics() {
       if (Math.abs(pet.vy) < STOP_SPEED) pet.vy = 0;
     } else {
       pet.vx = damp(pet.vx, AIR_DRAG, dt);
-      // Don't let a hard upward flick throw the pet off the top of the desktop.
-      if (pet.y < area.top) { pet.y = area.top; if (pet.vy < 0) pet.vy = 0; }
+      // A hard upward flick bounces off the top of the screen.
+      if (pet.y < area.top) { pet.y = area.top; if (pet.vy < 0) pet.vy = -pet.vy * WALL_BOUNCE; }
     }
 
     moved = true;
@@ -255,6 +255,9 @@ function broadcast() {
   // The renderers simulate the ragdoll's limbs against the floor, and the floor
   // depends on which display's work area the pet is standing on.
   for (const pet of state.pets) pet.floorY = groundY(pet) + pet.h;
+  // ...and their arms and legs bounce off the edges of the screen like the pets do.
+  const area = displayArea();
+  for (const pet of state.pets) pet.walls = { left: area.left, right: area.right, top: area.top };
   for (const win of windows.values()) {
     if (!win.isDestroyed()) win.webContents.send('state', state);
   }

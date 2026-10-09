@@ -281,6 +281,7 @@
     pet.lastBox = { x: s.x, y: s.y };
 
     body.setFloor(floorY);
+    if (s.walls) body.setWalls(s.walls.left, s.walls.right, s.walls.top);
     body.setBox(s.x, s.y, now);
     const airborne = shared.gravity && !held && (s.y + pet.h) < floorY - 1;
     body.setMode(held, airborne);
