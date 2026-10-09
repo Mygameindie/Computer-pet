@@ -468,6 +468,15 @@
             ax += Math.sin(th) * up + Math.cos(th) * inward;
             ay += -Math.cos(th) * up + Math.sin(th) * inward;
           }
+          if (part.spread) {
+            // A leg swung out slides toward the body and up, keeping its top under the pelvis.
+            const L = CFG.hipSlide;
+            const out = part.spread * wrap(this.ang(part.pivot, part.child) - (this.restAng(part.pivot, part.child) + th)) / DEG;
+            const f = Math.max(0, Math.min(1.2, (out - L.from) / (L.full - L.from)));
+            const up = f * L.up * this.k, inward = f * L.in * this.k * part.spread;
+            ax += Math.sin(th) * up + Math.cos(th) * inward;
+            ay += -Math.cos(th) * up + Math.sin(th) * inward;
+          }
         }
         ctx.save();
         ctx.translate(ax - originX, ay - originY);
@@ -478,14 +487,19 @@
       }
     }
 
-    // The outline that closes the torso where an arm has moved off it.
+    // The outline that closes the torso where an arm or leg has moved off it.
     drawEdges(ctx, originX, originY, th) {
       const N = CFG.particles.N, n = this.p.N;
       for (const e of CFG.edges || []) {
-        const base = this.restAng(e.pivot, e.tip) + th;
-        const d = Math.abs(wrap(this.ang(e.pivot, e.tip) - base)) / DEG;
-        const a = Math.max(0, Math.min(1, (d - 20) / 20));
+        let d = 0;
+        for (const [piv, tip, sign] of e.limbs) {
+          const base = this.restAng(piv, tip) + th;
+          const turn = wrap(this.ang(piv, tip) - base) / DEG;
+          d = Math.max(d, sign ? sign * turn : Math.abs(turn));
+        }
+        const a = Math.max(0, Math.min(1, (d - e.t0) / (e.t1 - e.t0)));
         if (a <= 0) continue;
+        const pt = q => [(q[0] - N.x) * this.k, (q[1] - N.y) * this.k];
         ctx.save();
         ctx.globalAlpha = a;
         ctx.translate(n.x - originX, n.y - originY);
@@ -494,8 +508,10 @@
         ctx.lineWidth = e.w * this.k;
         ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.moveTo((e.from[0] - N.x) * this.k, (e.from[1] - N.y) * this.k);
-        ctx.lineTo((e.to[0] - N.x) * this.k, (e.to[1] - N.y) * this.k);
+        const f = pt(e.from), t = pt(e.to);
+        ctx.moveTo(f[0], f[1]);
+        if (e.ctrl) { const c = pt(e.ctrl); ctx.quadraticCurveTo(c[0], c[1], t[0], t[1]); }
+        else ctx.lineTo(t[0], t[1]);
         ctx.stroke();
         ctx.restore();
       }
