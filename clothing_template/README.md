@@ -36,9 +36,9 @@ Tips:
     the part of a strap on the breast bounced with the chest and the strap broke in two.
   - `<name>_under.png`: drawn **under** the chest (the breasts cover it).
   Example, the bra: cups in `topunderwear1.png`, straps in `topunderwear1_over.png`.
-- **Stiff garments.** A garment that covers the chest in one solid piece (a sports bra, a tank
+- **Stiff garments.** A garment that covers the chest in one solid piece (a crop top, a tank
   top) would tear where the bouncing chest meets the body. Mark it `stiff: true` in
-  `outfit_config.js` (`{ id: "topunderwear2", stiff: true }`) and it stays whole on the body,
+  `outfit_config.js` (`{ id: "top1", stiff: true }`) and it stays whole on the body,
   over the chest. The chest doesn't bounce under it.
 - The chest wins over the arms: anything inside the pink circles only ever moves with the chest.
 - Give garments an outline (black, like the body art). Colour tinting in the Dress Up panel
