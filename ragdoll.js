@@ -398,8 +398,39 @@
       const shape = (ctx, r) => {
         ctx.beginPath();
         if (r.t === 'ellipse') ctx.ellipse(r.cx * cs, r.cy * cs, r.rx * cs, r.ry * cs, 0, 0, Math.PI * 2);
-        else ctx.rect(r.x0 * cs, r.y0 * cs, (r.x1 - r.x0) * cs, (r.y1 - r.y0) * cs);
+        else {
+          // Whole pixels, so two pieces cut along the same line meet without a seam.
+          const x0 = Math.round(r.x0 * cs), y0 = Math.round(r.y0 * cs);
+          ctx.rect(x0, y0, Math.round(r.x1 * cs) - x0, Math.round(r.y1 * cs) - y0);
+        }
         ctx.fill();
+      };
+
+      // Paint a limb's outline over in its own skin colour inside a box.
+      const unline = (ctx, r) => {
+        const all = ctx.getImageData(0, 0, CW, CH).data;
+        // Skin = the most common light colour in the picture.
+        const count = new Map();
+        for (let i = 0; i < all.length; i += 16) {
+          if (all[i + 3] < 250 || all[i] + all[i + 1] + all[i + 2] < 450) continue;
+          const key = (all[i] >> 3) << 10 | (all[i + 1] >> 3) << 5 | (all[i + 2] >> 3);
+          count.set(key, (count.get(key) || 0) + 1);
+        }
+        let best = 0, bestN = 0;
+        for (const [k2, n] of count) if (n > bestN) { bestN = n; best = k2; }
+        if (!bestN) return;
+        const sr = ((best >> 10) & 31) * 8 + 4, sg = ((best >> 5) & 31) * 8 + 4, sb = (best & 31) * 8 + 4;
+        const x0 = Math.max(0, Math.floor(r.x0 * cs)), y0 = Math.max(0, Math.floor(r.y0 * cs));
+        const x1 = Math.min(CW, Math.ceil(r.x1 * cs)), y1 = Math.min(CH, Math.ceil(r.y1 * cs));
+        if (x1 <= x0 || y1 <= y0) return;
+        const im = ctx.getImageData(x0, y0, x1 - x0, y1 - y0), d = im.data;
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i + 3] === 0) continue;
+          const dark = 1 - Math.min(1, (d[i] + d[i + 1] + d[i + 2]) / (sr + sg + sb));
+          if (dark <= 0.02) continue;
+          d[i] = sr; d[i + 1] = sg; d[i + 2] = sb;
+        }
+        ctx.putImageData(im, x0, y0);
       };
 
       const regionParts = CFG.parts.filter(p => p.region && imgs[p.file]);
@@ -415,13 +446,15 @@
         const putCarry = () => {
           art.x.save();
           art.x.beginPath();
-          art.x.rect(part.carry.x0 * cs, part.carry.y0 * cs, (part.carry.x1 - part.carry.x0) * cs, (part.carry.y1 - part.carry.y0) * cs);
+          const c0 = part.carry, cx0 = Math.round(c0.x0 * cs), cy0 = Math.round(c0.y0 * cs);
+          art.x.rect(cx0, cy0, Math.round(c0.x1 * cs) - cx0, Math.round(c0.y1 * cs) - cy0);
           art.x.clip();
           art.x.drawImage(bodyImg, 0, 0, CW, CH);
           art.x.restore();
         };
         if (part.carry && part.carryBelow && bodyImg) putCarry();
         art.x.drawImage(img, 0, 0, CW, CH);
+        if (part.unline) unline(art.x, part.unline);
         if (part.rest) {
           // The lumps that travel with the limbs are taken out of the torso...
           art.x.globalCompositeOperation = 'destination-out';

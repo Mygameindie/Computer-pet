@@ -28,10 +28,10 @@
     N:    { x: 425, y: 608,  r: 30,  k: 0.50, m: 2.5, wake: 0.30 },    // neck
     P:    { x: 425, y: 858,  r: 40,  k: 0.55, m: 3.0, wake: 0.12 },    // pelvis
     Hd:   { x: 425, y: 483,  r: 105, k: 0.30, m: 2.0, wake: 0.45 },    // head centre
-    SL:   { x: 364, y: 642,  r: 25,  k: 0.50, m: 1.5, wake: 0.30 },    // shoulders (where the arm meets the body, not at the neck)
-    SR:   { x: 486, y: 642,  r: 25,  k: 0.50, m: 1.5, wake: 0.30 },
-    HipL: { x: 398, y: 848,  r: 25,  k: 0.55, m: 2.0, wake: 0.12 },    // hips
-    HipR: { x: 452, y: 848,  r: 25,  k: 0.55, m: 2.0, wake: 0.12 },
+    SL:   { x: 352, y: 642,  r: 25,  k: 0.50, m: 1.5, wake: 0.30 },    // shoulders (where the arm meets the body, not at the neck)
+    SR:   { x: 498, y: 642,  r: 25,  k: 0.50, m: 1.5, wake: 0.30 },
+    HipL: { x: 398, y: 866,  r: 25,  k: 0.55, m: 2.0, wake: 0.12 },    // hips
+    HipR: { x: 452, y: 866,  r: 25,  k: 0.55, m: 2.0, wake: 0.12 },
     HL:   { x: 150, y: 775,  r: 40,  k: 0.16, m: 0.6, wake: 0.55 },    // hands
     HR:   { x: 700, y: 775,  r: 40,  k: 0.16, m: 0.6, wake: 0.55 },
     FL:   { x: 375, y: 1060, r: SOLE_Y - 1060, k: 0.65, m: 1.0, wake: 0 },   // feet
@@ -77,6 +77,10 @@
   // the part turns about and `child` the joint that sets its angle. `offset`
   // makes a part also follow a soft joint (the chest). `region` is the part of
   // the canvas whose clothes belong to this part, so a sleeve moves with the arm.
+  // `unline`: a box (source px) on a limb's own picture where its outline is
+  // painted over in skin colour: the end of the arm or leg that sits hidden under
+  // the body. When the limb swings and that end peeks out, it shows as skin
+  // instead of a black ring, so the joint doesn't show.
   // `carry`: pieces of the BODY picture that travel with a limb instead of
   // staying on the torso — the rounded skin lumps at the shoulders and hips that
   // hide the end of the arm or leg. Staying behind they'd be left as outline-less
@@ -85,10 +89,10 @@
     { id: 'back_wings', file: 'back_wings', optional: true, pivot: 'N', child: 'P' },
     { id: 'back_tail',  file: 'back_tail',  optional: true, pivot: 'P', child: 'N' },
     { id: 'back_hair',  file: 'back_hair',  optional: true, pivot: 'N', child: 'Hr' },
-    { id: 'leg_L', file: 'leg_L', drop: true, carry: { t: 'rect', x0: 340, y0: 869, x1: 425, y1: 900 }, pivot: 'HipL', child: 'FL', region: { t: 'rect', x0: 0,   y0: 868, x1: 425, y1: SRC_H } },
-    { id: 'leg_R', file: 'leg_R', drop: true, carry: { t: 'rect', x0: 425, y0: 869, x1: 510, y1: 900 }, pivot: 'HipR', child: 'FR', region: { t: 'rect', x0: 425, y0: 868, x1: SRC_W, y1: SRC_H } },
-    { id: 'arm_L', file: 'arm_L', lift: 1, carry: { t: 'rect', x0: 340, y0: 590, x1: 367, y1: 662 }, pivot: 'SL', child: 'HL', region: { t: 'rect', x0: 0,   y0: 606, x1: 346,   y1: 846 } },
-    { id: 'arm_R', file: 'arm_R', lift: -1, carry: { t: 'rect', x0: 483, y0: 590, x1: 510, y1: 662 }, pivot: 'SR', child: 'HR', region: { t: 'rect', x0: 505, y0: 606, x1: SRC_W, y1: 846 } },
+    { id: 'leg_L', file: 'leg_L', drop: true, unline: { x0: 340, y0: 790, x1: 425, y1: 846 }, carry: { t: 'rect', x0: 340, y0: 869, x1: 425, y1: 900 }, pivot: 'HipL', child: 'FL', region: { t: 'rect', x0: 0,   y0: 868, x1: 425, y1: SRC_H } },
+    { id: 'leg_R', file: 'leg_R', drop: true, unline: { x0: 425, y0: 790, x1: 510, y1: 846 }, carry: { t: 'rect', x0: 425, y0: 869, x1: 510, y1: 900 }, pivot: 'HipR', child: 'FR', region: { t: 'rect', x0: 425, y0: 868, x1: SRC_W, y1: SRC_H } },
+    { id: 'arm_L', file: 'arm_L', lift: 1, unline: { x0: 352, y0: 590, x1: 410, y1: 690 }, carry: { t: 'rect', x0: 340, y0: 590, x1: 367, y1: 662 }, pivot: 'SL', child: 'HL', region: { t: 'rect', x0: 0,   y0: 606, x1: 346,   y1: 846 } },
+    { id: 'arm_R', file: 'arm_R', lift: -1, unline: { x0: 440, y0: 590, x1: 498, y1: 690 }, carry: { t: 'rect', x0: 483, y0: 590, x1: 510, y1: 662 }, pivot: 'SR', child: 'HR', region: { t: 'rect', x0: 505, y0: 606, x1: SRC_W, y1: 846 } },
     { id: 'body',  file: 'body',  pivot: 'N', child: 'P', rest: true },
     { id: 'chest_L', file: 'chest_L', optional: true, pivot: 'N', child: 'P', offset: 'CL', region: { t: 'ellipse', cx: 381, cy: 676, rx: 54, ry: 56 } },
     { id: 'chest_R', file: 'chest_R', optional: true, pivot: 'N', child: 'P', offset: 'CR', region: { t: 'ellipse', cx: 469, cy: 676, rx: 54, ry: 56 } },
