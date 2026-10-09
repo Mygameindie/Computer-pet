@@ -258,6 +258,9 @@
         this.clampSoft();
         this.floor();
       }
+      // One last pass so the floor (solved last above) can't leave a limb past
+      // its limit, e.g. an arm pushed into the body while the pet lies down.
+      for (const lim of CFG.limits) this.limit(lim);
       this.pinJoint();
 
       // Joint friction: a loose limb's swing about its joint dies down instead
@@ -306,8 +309,12 @@
       const tipHeld = this.pin && this.pin.name === L.tip;
       let lo = L.lo, hi = L.hi;
       if (tipHeld) {
-        if (L.held === undefined) return;
-        lo = -L.held; hi = L.held;
+        // Only the side named in heldLo/heldHi is widened (the arm may go further
+        // UP when the pet hangs from that hand, never further down into the body).
+        if (L.held === undefined && L.heldLo === undefined && L.heldHi === undefined) return;
+        if (L.held !== undefined) { lo = -L.held; hi = L.held; }
+        if (L.heldLo !== undefined) lo = L.heldLo;
+        if (L.heldHi !== undefined) hi = L.heldHi;
       }
       const piv = this.p[L.pivot], tip = this.p[L.tip];
       const frame = this.frameAngle(L.frame);

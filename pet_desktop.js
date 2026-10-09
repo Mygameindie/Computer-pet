@@ -20,13 +20,13 @@
   const FALLBACK_ASPECT = 400 / 450;
   const ALPHA_THRESHOLD = 10;      // a pixel counts as "the pet" above this alpha
 
-  // The ragdoll's limbs swing outside the pet's box, so the canvas is bigger
-  // than the box by PAD on the left, right and top, and by PAD_BOTTOM below it
-  // (a pet picked up by the hand dangles beneath its own box; the floor is what
-  // stops it when it's on the ground). The canvas is shifted back by the same
-  // amount, so the box itself doesn't move.
-  const PAD = 150;
-  const PAD_BOTTOM = 170;
+  // The ragdoll's limbs swing well outside the pet's box: held by a foot it
+  // hangs upside down below it, held by a hand it dangles to one side. So each
+  // canvas is a square CANVAS_SCALE times the pet's height, and it follows the
+  // BODY rather than the box: every frame it is re-centred on the skeleton, so
+  // no pose can carry part of the pet off the canvas (where it would be cut
+  // off, or vanish entirely). With no ragdoll it is centred on the box.
+  const CANVAS_SCALE = 2.6;
   const SRC_H = (window.RAGDOLL_CONFIG && window.RAGDOLL_CONFIG.SRC_H) || 1134;
   const SRC_W = (window.RAGDOLL_CONFIG && window.RAGDOLL_CONFIG.SRC_W) || 851;
 
@@ -79,7 +79,8 @@
       usingFallbackArt: false,
       w: PET_HEIGHT * FALLBACK_ASPECT,
       h: PET_HEIGHT,
-      cw: 0, ch: 0,                       // canvas size in CSS px (box + PAD)
+      cw: 0, ch: 0,                       // canvas size in CSS px
+      ox: 0, oy: 0,                       // canvas top-left, global screen px
       body: window.PetRagdoll ? new window.PetRagdoll.Ragdoll() : null,
       partImgs: {},                       // images/parts/*.png that loaded for this character
       hasParts: false,                    // a full set of parts exists, so it can be a ragdoll
@@ -123,16 +124,14 @@
     // Back the canvas at device resolution so the sprite stays crisp on HiDPI
     // and Retina screens, but keep the CSS box in layout pixels.
     const dpr = window.devicePixelRatio || 1;
-    pet.cw = pet.w + PAD * 2;
-    pet.ch = pet.h + PAD + PAD_BOTTOM;
+    pet.cw = pet.ch = Math.ceil(Math.max(pet.w, pet.h) * CANVAS_SCALE);
     pet.canvas.width = Math.round(pet.cw * dpr);
     pet.canvas.height = Math.round(pet.ch * dpr);
     pet.canvas.style.width = pet.cw + 'px';
     pet.canvas.style.height = pet.ch + 'px';
-    // The landing squash pivots at the feet, which sit at the box's bottom edge.
-    pet.canvas.style.transformOrigin = '50% ' + (PAD + pet.h) + 'px';
-    pet.canvas.style.left = -PAD + 'px';
-    pet.canvas.style.top = -PAD + 'px';
+    // The landing squash pivots at the feet, which sit at the box's bottom edge
+    // (the sprite is centred on the canvas when it isn't a ragdoll).
+    pet.canvas.style.transformOrigin = '50% ' + Math.round((pet.ch + pet.h) / 2) + 'px';
     pet.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (pet.body) { pet.body.layout(pet.h / SRC_H); pet.placed = false; pet.artSig = null; }
 
@@ -202,8 +201,9 @@
       if (ragdollOn(pet)) { wakeRagdoll(); return; }
       if (pet.hasParts && pet.body) { drawStanding(pet); return; }
 
+      placeCanvas(pet, s.x + pet.w / 2, s.y + pet.h / 2);
       ctx.clearRect(0, 0, pet.cw, pet.ch);
-      paintSprite(pet, ctx, PAD, PAD, pet.w, pet.h);
+      paintSprite(pet, ctx, s.x - pet.ox, s.y - pet.oy, pet.w, pet.h);
     });
   }
 
@@ -276,11 +276,53 @@
     body.setMode(held, airborne);
   }
 
+  // Put a pet's canvas so its centre is at (cx, cy), global screen px. The
+  // canvas sits inside the pet's element, which layout() keeps at the box, so
+  // its offset from the box is re-applied whenever either one moves.
+  function placeCanvas(pet, cx, cy) {
+    pet.ox = Math.round(cx - pet.cw / 2);
+    pet.oy = Math.round(cy - pet.ch / 2);
+    applyCanvasOffset(pet);
+  }
+
+  function applyCanvasOffset(pet) {
+    const s = shared.pets[pet.index];
+    if (!s) return;
+    pet.canvas.style.left = (pet.ox - s.x) + 'px';
+    pet.canvas.style.top = (pet.oy - s.y) + 'px';
+  }
+
+  // Middle of a skeleton, in screen px.
+  function bodyCentre(pet) {
+    const p = pet.body.p;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const k in p) {
+      const j = p[k];
+      if (j.x < x0) x0 = j.x; if (j.x > x1) x1 = j.x;
+      if (j.y < y0) y0 = j.y; if (j.y > y1) y1 = j.y;
+    }
+    return { x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
+  }
+
+  // A joint that has gone NaN/Infinity would take the pet off screen for good,
+  // so put the body back in its standing pose instead.
+  function bodyIsSane(pet) {
+    const p = pet.body.p;
+    for (const k in p) if (!isFinite(p[k].x) || !isFinite(p[k].y)) return false;
+    return true;
+  }
+
   function drawBody(pet) {
     const { ctx } = pet;
     const s = shared.pets[pet.index];
+    if (!bodyIsSane(pet)) {
+      pet.body.box.x = s.x; pet.body.box.y = s.y;
+      pet.body.snapToPose();
+    }
+    const c = bodyCentre(pet);
+    placeCanvas(pet, c.x, c.y);
     ctx.clearRect(0, 0, pet.cw, pet.ch);
-    pet.body.draw(ctx, s.x - PAD, s.y - PAD, window.devicePixelRatio || 1);
+    pet.body.draw(ctx, pet.ox, pet.oy, window.devicePixelRatio || 1);
   }
 
   let ragdollRaf = 0;
@@ -324,6 +366,7 @@
       pet.el.style.display = 'flex';
       pet.el.style.left = (s.x - origin.x) + 'px';
       pet.el.style.top = (s.y - origin.y) + 'px';
+      applyCanvasOffset(pet);
     });
     placeDock();
   }
@@ -376,7 +419,8 @@
       // Canvas unexpectedly tainted — fall back to an inset bounding box so the
       // pet stays draggable rather than becoming impossible to grab.
       const m = 0.12;
-      return cx > PAD + pet.w * m && cx < PAD + pet.w * (1 - m) && cy > PAD + pet.h * m && cy < PAD + pet.h * (1 - m);
+      const s = shared.pets[pet.index], bx = s.x - pet.ox, by = s.y - pet.oy;
+      return cx > bx + pet.w * m && cx < bx + pet.w * (1 - m) && cy > by + pet.h * m && cy < by + pet.h * (1 - m);
     }
   }
 
