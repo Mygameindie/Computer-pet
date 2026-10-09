@@ -32,6 +32,7 @@ html, body {
 
 .pet-canvas {
   display: block;
+  position: relative;           /* pet_desktop.js shifts it back by the ragdoll's margin */
   cursor: grab;
   transform-origin: 50% 100%;   /* squash from the feet, like a real landing */
 }

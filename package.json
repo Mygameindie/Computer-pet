@@ -26,6 +26,8 @@
       "index.html",
       "pet_style.css",
       "pet_desktop.js",
+      "ragdoll_config.js",
+      "ragdoll.js",
       "asset_path_fix.js",
       "outfit_config.js",
       "outfit_system.js",

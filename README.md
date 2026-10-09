@@ -17,6 +17,12 @@ Built on Electron, so the same code runs on **Windows** and **macOS**.
   than behind it. Flick it and it keeps the momentum of the throw, bounces off
   the sides of the desktop and slides to a stop. Turn it off from the tray or the
   pet's right-click menu if you'd rather park a pet in mid-air.
+- **Ragdoll.** The pet is a skeleton, not a flat picture. It stands on its own,
+  but pick it up by a hand and it hangs by that hand; by a foot and it hangs
+  upside down. Throw it and it tumbles limp, then pulls itself back onto its
+  feet after it lands. Clothes are sliced up with the body, so every outfit
+  follows. Turn it off from the tray or right-click menu (**Ragdoll**) for the
+  old rigid sprite.
 - **Doesn't block anything.** The window is click-through everywhere except the
   pet itself. Desktop shortcuts, links, buttons and browser windows underneath
   stay fully clickable, even directly around the pet — hit-testing is done per
@@ -203,6 +209,18 @@ standing on. Only one of the two panels is open at a time.
 
 ---
 
+## Ragdoll art
+
+The ragdoll slices whatever is on screen (base + clothes), so it needs no extra
+art, only a base sprite whose limbs don't overlap each other or the torso, which
+`base.png` already is: a standing pose with the arms held out and the legs apart.
+If you redraw the base, keep that and update the joint positions and capsule
+sizes in `ragdoll_config.js` to match. Draw each limb a little longer than it
+needs to be at the joints and the bends will hide the seams.
+
+Loose clothes (sleeves, skirts) bend best, because tight clothes with a seam at
+an elbow or knee will show that seam when the limb bends.
+
 ## Adding artwork
 
 Drop PNGs into `images/`. Everything is transparent art drawn at the same canvas
@@ -244,6 +262,8 @@ a different look (character 1 in a dress, character 2 in top + pants).
 |---|---|
 | `main.js` | Electron main process: one transparent always-on-top overlay per display, shared pet state in global screen coordinates, the gravity simulation, tray, click-through toggling |
 | `preload.js` | The only bridge between page and main (`contextIsolation` on, `nodeIntegration` off) |
+| `ragdoll_config.js` | The skeleton: joint positions, bone limits and how the sprite is cut into parts (all in base-sprite pixels) |
+| `ragdoll.js` | The ragdoll itself: a small position-based physics sim plus the code that slices the finished sprite (body + clothes) into parts and draws them |
 | `pet_desktop.js` | The overlay scene: draws the pets, alpha hit-testing, dragging and throwing, which screen shows the wardrobe bar, state sync |
 | `outfit_system.js` | Dress Up panel, layering, colour tinting, clothing rules |
 | `outfit_presets.js` | Preset outfits and the 🎀 Outfits panel |
