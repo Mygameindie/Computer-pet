@@ -35,6 +35,9 @@
   const STEP = 1 / 60;
   const GRAVITY = 2600;           // px/s², the same as main.js, so a falling box and a falling limb agree
   const DAMPING = 0.92;           // share of a joint's speed (relative to the box) kept per step
+  const DAMPING_STILL = 0.75;     // the same while held and the cursor is still
+  const HELD_STILL_STEPS = 30;    // steps (half a second) without the box moving before that kicks in
+
   const FLOOR_FRICTION = 0.6;     // sideways speed kept per step while touching the floor
   const ITERATIONS = 8;
   const STIFF_HELD = 0.012;       // dangling from the cursor
@@ -223,13 +226,17 @@
       const g = GRAVITY * dt * dt;
       const bx = this.boxVel.x * dt, by = this.boxVel.y * dt;
 
+      // Held still by the cursor, a body jammed against the floor can keep
+      // trembling between the floor and its joint limits; once the cursor has
+      // been still for a moment, damp it hard so it comes to rest.
+      const damp = this.held && this.idleSteps > HELD_STILL_STEPS ? DAMPING_STILL : DAMPING;
       for (const n of ALL) {
         const j = this.p[n];
         let vx = j.x - j.px, vy = j.y - j.py;
         // Damp the speed *relative to the box*, so a fall or a throw isn't
         // braked by air drag but loose joints still settle.
-        vx = bx + (vx - bx) * DAMPING;
-        vy = by + (vy - by) * DAMPING;
+        vx = bx + (vx - bx) * damp;
+        vy = by + (vy - by) * damp;
         j.px = j.x; j.py = j.y;
         j.x += vx;
         const lift = SKEL.includes(n) ? 1 - sOf(n) : (1 - s) * (this.rest[n].gs === undefined ? 1 : this.rest[n].gs);
@@ -258,9 +265,6 @@
         this.clampSoft();
         this.floor();
       }
-      // One last pass so the floor (solved last above) can't leave a limb past
-      // its limit, e.g. an arm pushed into the body while the pet lies down.
-      for (const lim of CFG.limits) this.limit(lim);
       this.pinJoint();
 
       // Joint friction: a loose limb's swing about its joint dies down instead
@@ -292,8 +296,11 @@
       const d = Math.hypot(dx, dy) || 1e-6;
       const diff = (d - l.len) / d;
       // Heavier joints move less: split the correction by inverse mass.
-      const ia = (this.pin && this.pin.name === l.a) ? 0 : this.rest[l.a].im;
-      const ib = (this.pin && this.pin.name === l.b) ? 0 : this.rest[l.b].im;
+      // A soft joint (the hair) hangs off the body but never drags it: it is
+      // pulled by a spring that turns with the body, and letting it push back
+      // fed energy into the skeleton, so a held pet never stopped wobbling.
+      const ia = (this.pin && this.pin.name === l.a) || SOFT.includes(l.b) ? 0 : this.rest[l.a].im;
+      const ib = (this.pin && this.pin.name === l.b) || SOFT.includes(l.a) ? 0 : this.rest[l.b].im;
       const sum = ia + ib || 1;
       const wa = ia / sum, wb = ib / sum;
       a.x += dx * diff * wa; a.y += dy * diff * wa;
@@ -322,14 +329,30 @@
       const cur = Math.atan2(tip.y - piv.y, tip.x - piv.x);
       const d = wrap(cur - base);
       if (d >= lo * DEG && d <= hi * DEG) return;
-      const a = base + Math.max(lo * DEG, Math.min(hi * DEG, d));
+      // Snap to whichever limit is nearer going round the circle. A plain clamp
+      // picks the wrong one once the limb is more than halfway round, and the
+      // body then gets flung across to the far side every step — that is what
+      // made a pet held by its hand spin.
+      const toLo = Math.abs(wrap(d - lo * DEG)), toHi = Math.abs(wrap(d - hi * DEG));
+      const a = base + (toLo < toHi ? lo : hi) * DEG;
       const len = Math.hypot(tip.x - piv.x, tip.y - piv.y);
       if (tipHeld) {
-        piv.x = tip.x - Math.cos(a) * len;
-        piv.y = tip.y - Math.sin(a) * len;
+        // Swing the body round the held hand, and shift its previous position by
+        // the same amount: in this sim a move IS a speed, and a limit pushing
+        // speed into the body every step kept a pet held by its hand
+        // cartwheeling forever.
+        const nx = tip.x - Math.cos(a) * len, ny = tip.y - Math.sin(a) * len;
+        piv.px += nx - piv.x; piv.py += ny - piv.y;
+        piv.x = nx; piv.y = ny;
       } else {
-        tip.x = piv.x + Math.cos(a) * len;
-        tip.y = piv.y + Math.sin(a) * len;
+        // While held, the same for a limb pushed back inside its range (except
+        // the head resting on the floor: there the floor and the neck limit take
+        // turns moving it, and carrying the speed along rocked the body). Not
+        // while standing up, or the limits hold the pet a few degrees off upright.
+        const nx = piv.x + Math.cos(a) * len, ny = piv.y + Math.sin(a) * len;
+        const headDown = L.tip === 'Hd' && tip.y >= this.floorY - this.rest.Hd.r - 1;
+        if (this.held && !headDown) { tip.px += nx - tip.x; tip.py += ny - tip.y; }
+        tip.x = nx; tip.y = ny;
       }
     }
 
