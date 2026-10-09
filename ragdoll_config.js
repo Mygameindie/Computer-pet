@@ -14,7 +14,10 @@
 (function (root) {
   const SRC_W = 851;
   const SRC_H = 1134;
-  const SOLE_Y = 1085;          // lowest pixel of the feet in the standing pose
+  // The legs are drawn this many source px lower than in the part files (the whole
+  // leg, hips included, so it still turns about the same spot on the leg).
+  const LEG_DROP = 14;
+  const SOLE_Y = 1085 + LEG_DROP;   // lowest pixel of the feet in the standing pose
 
   // Joints. r = distance from the joint to the floor when lying on it,
   // k = how hard the joint is pulled back to the standing pose (0..1).
@@ -79,8 +82,8 @@
     { id: 'back_wings', file: 'back_wings', optional: true, pivot: 'N', child: 'P' },
     { id: 'back_tail',  file: 'back_tail',  optional: true, pivot: 'P', child: 'N' },
     { id: 'back_hair',  file: 'back_hair',  optional: true, pivot: 'N', child: 'Hr' },
-    { id: 'leg_L', file: 'leg_L', carry: { t: 'rect', x0: 340, y0: 869, x1: 425, y1: 900 }, pivot: 'HipL', child: 'FL', region: { t: 'rect', x0: 0,   y0: 868, x1: 425, y1: SRC_H } },
-    { id: 'leg_R', file: 'leg_R', carry: { t: 'rect', x0: 425, y0: 869, x1: 510, y1: 900 }, pivot: 'HipR', child: 'FR', region: { t: 'rect', x0: 425, y0: 868, x1: SRC_W, y1: SRC_H } },
+    { id: 'leg_L', file: 'leg_L', drop: true, carry: { t: 'rect', x0: 340, y0: 869, x1: 425, y1: 900 }, pivot: 'HipL', child: 'FL', region: { t: 'rect', x0: 0,   y0: 868, x1: 425, y1: SRC_H } },
+    { id: 'leg_R', file: 'leg_R', drop: true, carry: { t: 'rect', x0: 425, y0: 869, x1: 510, y1: 900 }, pivot: 'HipR', child: 'FR', region: { t: 'rect', x0: 425, y0: 868, x1: SRC_W, y1: SRC_H } },
     { id: 'arm_L', file: 'arm_L', lift: 1, carry: { t: 'rect', x0: 340, y0: 590, x1: 367, y1: 662 }, pivot: 'SL', child: 'HL', region: { t: 'rect', x0: 0,   y0: 606, x1: 346,   y1: 846 } },
     { id: 'arm_R', file: 'arm_R', lift: -1, carry: { t: 'rect', x0: 483, y0: 590, x1: 510, y1: 662 }, pivot: 'SR', child: 'HR', region: { t: 'rect', x0: 505, y0: 606, x1: SRC_W, y1: 846 } },
     { id: 'body',  file: 'body',  pivot: 'N', child: 'P', rest: true },

@@ -459,6 +459,11 @@
           ang = th;
         } else {
           ang = Math.atan2(b.y - a.y, b.x - a.x) - part.restAngle;
+          if (part.drop) {
+            // The legs sit a little lower than drawn in the part files.
+            const d = CFG.LEG_DROP * this.k;
+            ax += -Math.sin(th) * d; ay += Math.cos(th) * d;
+          }
           if (part.lift) {
             // Raising the arm lifts the shoulder: up the body, and a little inward.
             const L = CFG.shoulderLift;
