@@ -34,13 +34,15 @@
       "outfit_presets.js",
       "images/**"
     ],
+    "compression": "maximum",
+    "electronLanguages": [
+      "en-US"
+    ],
     "win": {
       "target": [
-        "portable"
-      ]
-    },
-    "portable": {
-      "artifactName": "ComputerPet-${version}.exe"
+        "zip"
+      ],
+      "artifactName": "ComputerPet-${version}.${ext}"
     },
     "mac": {
       "target": [
