@@ -737,7 +737,7 @@
               w.x.globalCompositeOperation = 'destination-out';
               w.x.drawImage(blowMask, 0, 0);
             }
-            if (stiff && !part.offset) {
+            if (false && stiff && !part.offset) {   // stiff garments are never cut up: they stay whole on the body
               const t = mkRead(CW, CH);
               t.x.drawImage(stiff, 0, 0);
               t.x.globalCompositeOperation = 'destination-in';
@@ -827,14 +827,14 @@
       // the chest, so it moves with the body but covers the chest.
       let overAll = over;
       if (stiff) {
-        // A stiff garment's share: all of it but what the arms, legs and head took.
+        // A stiff garment is never cut up: all of it stays on the body.
         const t = mkRead(CW, CH);
-        if (over) t.x.drawImage(over, 0, 0);
         const st = mkRead(CW, CH);
         st.x.drawImage(stiff, 0, 0);
-        st.x.globalCompositeOperation = 'destination-out';
-        for (const o of regionParts) if (!o.offset) shape(st.x, o.region);
         t.x.drawImage(st.c, 0, 0);
+        // The _over layers go on top of the stiff garments, so a jacket's
+        // front panels cover the top beneath them.
+        if (over) t.x.drawImage(over, 0, 0);
         overAll = t.c;
       }
       if (overAll && bboxOf(overAll.getContext('2d', { willReadFrequently: true }))) {
