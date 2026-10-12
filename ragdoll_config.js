@@ -70,13 +70,13 @@
   // Kept tiny on purpose: the pet moves as one piece and only the legs give a
   // little, small enough that no joint or seam ever shows.
   const limits = [
-    { pivot: 'SL',   tip: 'HL', lo: -3, hi: 3, frame: 'torso' },
-    { pivot: 'SR',   tip: 'HR', lo: -3, hi: 3, frame: 'torso' },
-    { pivot: 'HipL', tip: 'FL', lo: -4, hi: 12, frame: 'torso' },
-    { pivot: 'HipR', tip: 'FR', lo: -12, hi: 4, frame: 'torso' },
-    { pivot: 'N',    tip: 'Hd', lo: -3, hi: 3, frame: 'torso' },
-    { pivot: 'N',    tip: 'Hr', lo: -5, hi: 5, frame: 'head' },
-    { pivot: 'P',    tip: 'Tt', lo: -5, hi: 5, frame: 'torso' },
+    { pivot: 'SL',   tip: 'HL', lo: -3, hi: 3, heldLo: -3, heldHi: 3, frame: 'torso' },
+    { pivot: 'SR',   tip: 'HR', lo: -3, hi: 3, heldLo: -3, heldHi: 3, frame: 'torso' },
+    { pivot: 'HipL', tip: 'FL', lo: -4, hi: 12, heldLo: -4, heldHi: 12, frame: 'torso' },
+    { pivot: 'HipR', tip: 'FR', lo: -12, hi: 4, heldLo: -12, heldHi: 4, frame: 'torso' },
+    { pivot: 'N',    tip: 'Hd', lo: -3, hi: 3, heldLo: -3, heldHi: 3, frame: 'torso' },
+    { pivot: 'N',    tip: 'Hr', lo: -5, hi: 5, heldLo: -5, heldHi: 5, frame: 'head' },
+    { pivot: 'P',    tip: 'Tt', lo: -5, hi: 5, heldLo: -5, heldHi: 5, frame: 'torso' },
   ];
 
   // Parts, back to front. `file` is images/parts/<file>.png. `pivot` is the joint
@@ -96,14 +96,14 @@
     { id: 'back_hair',  file: 'back_hair',  optional: true, pivot: 'N', child: 'Hr' },
     { id: 'back_wings', file: 'back_wings', optional: true, pivot: 'N', child: 'P' },
     { id: 'back_tail',  file: 'back_tail',  optional: true, pivot: 'P', child: 'Tt' },
-    { id: 'leg_L', file: 'leg_L', drop: true, unline: { x0: 340, y0: 790, x1: 425, y1: 846 }, carry: { t: 'rect', x0: 340, y0: 869, x1: 425, y1: 900 }, pivot: 'HipL', child: 'FL', region: { t: 'rect', x0: 0,   y0: 868, x1: 425, y1: SRC_H } },
-    { id: 'leg_R', file: 'leg_R', drop: true, unline: { x0: 425, y0: 790, x1: 510, y1: 846 }, carry: { t: 'rect', x0: 425, y0: 869, x1: 510, y1: 900 }, pivot: 'HipR', child: 'FR', region: { t: 'rect', x0: 425, y0: 868, x1: SRC_W, y1: SRC_H } },
-    { id: 'arm_L', file: 'arm_L', lift: 1, unline: { x0: 352, y0: 590, x1: 410, y1: 690 }, carry: { t: 'rect', x0: 340, y0: 590, x1: 367, y1: 662 }, pivot: 'SL', child: 'HL', region: { t: 'rect', x0: 0,   y0: 606, x1: 346,   y1: 846 } },
-    { id: 'arm_R', file: 'arm_R', lift: -1, unline: { x0: 440, y0: 590, x1: 498, y1: 690 }, carry: { t: 'rect', x0: 483, y0: 590, x1: 510, y1: 662 }, pivot: 'SR', child: 'HR', region: { t: 'rect', x0: 505, y0: 606, x1: SRC_W, y1: 846 } },
+    { id: 'leg_L', file: 'leg_L', drop: true, pivot: 'HipL', child: 'FL', region: { t: 'rect', x0: 0,   y0: 868, x1: 425, y1: SRC_H } },
+    { id: 'leg_R', file: 'leg_R', drop: true, pivot: 'HipR', child: 'FR', region: { t: 'rect', x0: 425, y0: 868, x1: SRC_W, y1: SRC_H } },
+    { id: 'arm_L', file: 'arm_L', pivot: 'SL', child: 'HL' },
+    { id: 'arm_R', file: 'arm_R', pivot: 'SR', child: 'HR' },
     { id: 'body',  file: 'body',  pivot: 'N', child: 'P', rest: true },
     { id: 'chest_L', file: 'chest_L', optional: true, pivot: 'N', child: 'P', offset: 'CL', region: { t: 'ellipse', cx: 381, cy: 676, rx: 54, ry: 56 } },
     { id: 'chest_R', file: 'chest_R', optional: true, pivot: 'N', child: 'P', offset: 'CR', region: { t: 'ellipse', cx: 469, cy: 676, rx: 54, ry: 56 } },
-    { id: 'head',  file: 'head',  carry: { t: 'rect', x0: 370, y0: 594, x1: 480, y1: 614 }, carryBelow: true, pivot: 'N', child: 'Hd', region: { t: 'rect', x0: 0, y0: 0, x1: SRC_W, y1: 606 } },
+    { id: 'head',  file: 'head',  pivot: 'N', child: 'Hd', region: { t: 'rect', x0: 0, y0: 0, x1: SRC_W, y1: 606 } },
   ];
 
   // The shoulder line: from the base of the neck (on the body) over the top of the
@@ -116,15 +116,9 @@
   // outline from the body's side line (`side`) round to the arm's underside
   // (`arm`). `inner` is a point inside the body that closes the filled area.
   // Fades in over the first few degrees of raise; hidden when the arm is down.
-  const armpitLines = [
-    { part: 'arm_L', sign: 1,  side: [373, 664], ctrl: [369, 654], arm: [353, 668], inner: [392, 640], w: 7.5 },
-    { part: 'arm_R', sign: -1, side: [477, 664], ctrl: [481, 654], arm: [497, 668], inner: [458, 640], w: 7.5 },
-  ];
+  const armpitLines = [];   // not drawn: the sprite is left as it was drawn
 
-  const shoulderLines = [
-    { part: 'arm_L', neck: [380, 605], ctrl: [352, 606], arm: [326, 627], w: 6.5 },
-    { part: 'arm_R', neck: [470, 605], ctrl: [498, 606], arm: [524, 627], w: 6.5 },
-  ];
+  const shoulderLines = [];   // not drawn: the sprite is left as it was drawn
 
   // A raised arm lifts its shoulder: the whole arm (with the shoulder lump it
   // carries) is drawn up and a little toward the neck, by up to `up` / `in` source
