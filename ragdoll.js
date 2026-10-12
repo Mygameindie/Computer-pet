@@ -601,10 +601,17 @@
     // stiff (optional): garments kept whole over the chest (a top): over the
     // chest they go on the body's over-the-chest layer, but their sleeves and
     // anything else on the arms, legs or head still go with those parts.
-    buildArt(imgs, cloth, cs, hang, over, under, blow, blowFrom, stiff) {
+    buildArt(imgs, cloth, cs, hang, over, under, blow, blowFrom, stiff, armCloth) {
       const CW = Math.round(CFG.SRC_W * cs), CH = Math.round(CFG.SRC_H * cs);
       const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w); c.height = Math.max(1, h); return c; };
       const mkRead = (w, h) => { const c = mk(w, h); return { c, x: c.getContext('2d', { willReadFrequently: true }) }; };
+
+      // Sleeves drawn as their own per-arm pictures (<garment>_arm_L/_arm_R.png):
+      // when the worn garments have them, nothing is cut along the arms and the
+      // stiff garments stay whole. Without them the old cuts are used.
+      const armPic = id => armCloth && armCloth[id] && armCloth[id].getContext('2d').getImageData(0, 0, CW, CH).data.some((v, i) => i % 4 === 3 && v > 6);
+      const armArt = !!(armPic('arm_L') || armPic('arm_R'));
+      const hasRegion = p => p.region && !(armArt && (p.id === 'arm_L' || p.id === 'arm_R'));
 
       const bboxOf = (ctx) => {
         const d = ctx.getImageData(0, 0, CW, CH).data;
@@ -663,7 +670,7 @@
         ctx.putImageData(im, x0, y0);
       };
 
-      const regionParts = CFG.parts.filter(p => p.region && imgs[p.file]);
+      const regionParts = CFG.parts.filter(p => hasRegion(p) && imgs[p.file]);
       // The blowing part of a skirt: its pixels below the waistband line.
       let blowMask = null, blowY = 0;
       if (blow && cloth) {
@@ -716,7 +723,7 @@
         if (cloth) {
           const w = mkRead(CW, CH);
           w.x.drawImage(cloth, 0, 0);
-          if (part.region) {
+          if (hasRegion(part)) {
             w.x.globalCompositeOperation = 'destination-in';
             shape(w.x, part.region);
             // The chest wins where its region overlaps another (the arms
@@ -737,7 +744,7 @@
               w.x.globalCompositeOperation = 'destination-out';
               w.x.drawImage(blowMask, 0, 0);
             }
-            if (stiff && !part.offset) {
+            if (!armArt && stiff && !part.offset) {
               const t = mkRead(CW, CH);
               t.x.drawImage(stiff, 0, 0);
               t.x.globalCompositeOperation = 'destination-in';
@@ -827,14 +834,18 @@
       // the chest, so it moves with the body but covers the chest.
       let overAll = over;
       if (stiff) {
-        // A stiff garment's share: all of it but what the arms, legs and head took.
+        // A stiff garment's share: all of it but what the arms, legs and head took
+        // (all of it when the sleeves are their own pictures).
         const t = mkRead(CW, CH);
-        if (over) t.x.drawImage(over, 0, 0);
+        if (!armArt && over) t.x.drawImage(over, 0, 0);
         const st = mkRead(CW, CH);
         st.x.drawImage(stiff, 0, 0);
-        st.x.globalCompositeOperation = 'destination-out';
-        for (const o of regionParts) if (!o.offset) shape(st.x, o.region);
+        if (!armArt) {
+          st.x.globalCompositeOperation = 'destination-out';
+          for (const o of regionParts) if (!o.offset) shape(st.x, o.region);
+        }
         t.x.drawImage(st.c, 0, 0);
+        if (armArt && over) t.x.drawImage(over, 0, 0);
         overAll = t.c;
       }
       if (overAll && bboxOf(overAll.getContext('2d', { willReadFrequently: true }))) {
@@ -848,6 +859,25 @@
         for (let i = out.length - 1; i >= 0; i--) if (out[i].offset || out[i].id === 'body') { at = i + 1; break; }
         out.splice(at, 0, {
           id: 'body_over', pivot: 'N', child: 'P', canvas: c,
+          ox: pv.x * cs - b.x0, oy: pv.y * cs - b.y0,
+          restAngle: Math.atan2(ch.y - pv.y, ch.x - pv.x),
+        });
+      }
+      // Sleeves: each arm's clothing is its own picture, drawn above the body and
+      // turned with that arm (nothing is cut out of the garments).
+      for (const id of ['arm_L', 'arm_R']) {
+        const src = armCloth && armCloth[id];
+        const def = CFG.parts.find(p => p.id === id);
+        if (!src || !def) continue;
+        const r = mkRead(CW, CH);
+        r.x.drawImage(src, 0, 0);
+        const b = bboxOf(r.x);
+        if (!b) continue;
+        const c = mk(b.x1 - b.x0, b.y1 - b.y0);
+        c.getContext('2d').drawImage(r.c, -b.x0, -b.y0);
+        const pv = CFG.particles[def.pivot], ch = CFG.particles[def.child];
+        out.push({
+          id: id + '_cloth', pivot: def.pivot, child: def.child, canvas: c,
           ox: pv.x * cs - b.x0, oy: pv.y * cs - b.y0,
           restAngle: Math.atan2(ch.y - pv.y, ch.x - pv.x),
         });
