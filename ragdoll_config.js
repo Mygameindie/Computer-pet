@@ -67,14 +67,16 @@
   // `heldLo` / `heldHi` replace `lo` / `hi` while the pet is carried by that
   // hand: the arm may be raised further (or it couldn't hang from it), but it
   // may not be lowered any further, or it would swing into the body.
+  // Kept tiny on purpose: the pet moves as one piece and only the legs give a
+  // little, small enough that no joint or seam ever shows.
   const limits = [
-    { pivot: 'SL',   tip: 'HL', lo: -40, hi: 90, heldHi: 115, frame: 'torso' },
-    { pivot: 'SR',   tip: 'HR', lo: -90, hi: 40, heldLo: -115, frame: 'torso' },
-    { pivot: 'HipL', tip: 'FL', lo: -12, hi: 50, frame: 'torso' },
-    { pivot: 'HipR', tip: 'FR', lo: -50, hi: 12, frame: 'torso' },
-    { pivot: 'N',    tip: 'Hd', lo: -30, hi: 30, heldLo: -30, heldHi: 30, frame: 'torso' },
-    { pivot: 'N',    tip: 'Hr', lo: -35, hi: 35, frame: 'head' },
-    { pivot: 'P',    tip: 'Tt', lo: -50, hi: 50, frame: 'torso' },
+    { pivot: 'SL',   tip: 'HL', lo: -3, hi: 3, frame: 'torso' },
+    { pivot: 'SR',   tip: 'HR', lo: -3, hi: 3, frame: 'torso' },
+    { pivot: 'HipL', tip: 'FL', lo: -4, hi: 12, frame: 'torso' },
+    { pivot: 'HipR', tip: 'FR', lo: -12, hi: 4, frame: 'torso' },
+    { pivot: 'N',    tip: 'Hd', lo: -3, hi: 3, frame: 'torso' },
+    { pivot: 'N',    tip: 'Hr', lo: -5, hi: 5, frame: 'head' },
+    { pivot: 'P',    tip: 'Tt', lo: -5, hi: 5, frame: 'torso' },
   ];
 
   // Parts, back to front. `file` is images/parts/<file>.png. `pivot` is the joint
