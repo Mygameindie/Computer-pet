@@ -142,6 +142,8 @@ function clampAll() {
 // pet costs exactly nothing.
 const GRAVITY = 2600;        // px/s² — a screen-height fall takes about half a second
 const BOUNCE = 0.5;          // share of downward speed kept when it hits the floor
+const RAGDOLL_BOUNCE = 0.12; // same with the ragdoll on: the limbs bounce on their own, and a limp body
+                             // that also hopped like a rubber ball bounced three times, limbs flailing
 const BOUNCE_CUTOFF = 240;   // px/s — land slower than this and it just stops
 const WALL_BOUNCE = 0.7;     // same, for the left/right/top edges of the screen
 const GROUND_FRICTION = 5.5; // e-folds per second while sliding along the floor
@@ -225,7 +227,7 @@ function stepPhysics() {
       const hit = pet.vy;
       pet.y = landing;
       if (hit > BOUNCE_CUTOFF) {
-        pet.vy = -hit * BOUNCE;
+        pet.vy = -hit * (state.ragdoll ? RAGDOLL_BOUNCE : BOUNCE);
       } else if (hit > 0) {
         pet.vy = 0;
       }

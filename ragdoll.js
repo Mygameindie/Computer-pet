@@ -40,12 +40,22 @@
   const SKIRT_FROM = 250;          // px/s (default size) falling before the skirt starts to lift
   const SKIRT_FULL = 1400;         // px/s at which it is blown right up
   const SKIRT_WIDEN = 0.7;         // how much wider it billows, fully blown
+  const LEG_HALF_TOP = 30;         // source px: half the width of a leg at the hip...
+  const LEG_HALF_SOLE = 76;        // ...and at the foot, for keeping it inside the skirt
+  const SKIRT_EASE = 60;           // source px below the waist over which the skirt eases out to cover the legs
+  const LEG_REACH = 1.25;          // how far past the ankle (as a share of hip-to-ankle) the foot reaches
+  const SKIRT_SMOOTH = 8;          // strips looked down to smooth the skirt's stretch
+  const SKIRT_EDGE = 10;           // source px of a skirt's side (its outline) kept unstretched
+  const SKIRT_PAD = 8;             // source px of skirt kept beyond a leg
   const SKIRT_FOLD = 0.7;          // how much shorter (lifted up toward the hips) it gets, fully blown
   const HELD_SWING_MAX = 1200;    // px/s (at the default pet size) a held body may move round the held point
   const HELD_STILL_STEPS = 30;    // steps (half a second) without the box moving before that kicks in
 
   const EDGE_BOUNCE = 0.6;        // share of speed a limb keeps bouncing off the side or top of the screen
   const FLOOR_FRICTION = 0.6;     // sideways speed kept per step while touching the floor
+  const JOINT_MAX_SPEED = 1700;   // px/s (default size) a joint may move relative to the box in one step
+  const FLOOR_BOUNCE = 0.3;       // share of its downward speed a limb that lands hard bounces back up with
+  const FLOOR_REST_SPEED = 1.5;   // px/step (at the default size) below which a limb landing just stops
   const FLOOR_SINK = 40;          // px below the floor past which a joint is lifted out with no speed
   const ITERATIONS = 8;
   const STIFF_HELD = 0.012;       // dangling from the cursor
@@ -243,6 +253,7 @@
     }
 
     step(dt) {
+      this.stepNo = (this.stepNo || 0) + 1;
       // Stiffness: collapses at once when grabbed or thrown, climbs back while
       // the pet is on its feet.
       // Back on the floor after going limp: lie there a moment, then get up.
@@ -331,6 +342,19 @@
         this.floor();
       }
       this.pinJoint();
+      // Nothing about a limp body moves faster than a hard fall does. Joint
+      // limits and bones can still jam a joint into a place it can't be, and the
+      // constraints then throw it across the body in a single step (a hand
+      // flicking over the head, a foot whipping up), so the speed of a joint
+      // *relative to the box* is capped; it eases the rest of the way over the
+      // next steps instead of popping.
+      const cap = JOINT_MAX_SPEED * dt * this.k / (250 / 1134);
+      for (const n of ALL) {
+        if (this.pin && this.pin.name === n) continue;
+        const j = this.p[n];
+        const dx = j.x - j.px - bx, dy = j.y - j.py - by, d = Math.hypot(dx, dy);
+        if (d > cap) { const f = cap / d; j.x = j.px + bx + dx * f; j.y = j.py + by + dy * f; }
+      }
       // The arms get the last word: the bones solved after their limit could
       // carry an arm over the head or into the body, and once it was there the
       // limits pulled it the wrong way and the body went spinning.
@@ -553,6 +577,8 @@
       // be. Dragged along the floor, the floor's grip rolled the body round the
       // held point like a wheel, so it spun the whole time it was carried.
       if (this.held) return;
+      const fl = this.stepNo;
+      const rest = FLOOR_REST_SPEED * this.k / (250 / 1134);
       for (const n of ALL) {
         const j = this.p[n];
         const lim = this.floorY - this.rest[n].r;
@@ -560,9 +586,15 @@
           // Deep below the floor (let go of while hanging over the taskbar):
           // lift it out without turning the lift into an upward throw.
           if (j.y - lim > FLOOR_SINK) j.py -= j.y - lim;
+          // How fast it was going down when it hit. A limb that lands hard
+          // bounces a little (a soft joint, the hair or chest, less); a slow
+          // one just stops, so it can lie still instead of buzzing on the floor.
+          const vy = j.y - j.py;
           j.y = lim;
-          // Friction: scrub sideways speed while lying or standing on the floor.
-          j.px = j.x - (j.x - j.px) * FLOOR_FRICTION;
+          if (vy > 0) j.py = lim + (vy > rest ? vy * FLOOR_BOUNCE * (this.rest[n].gs === undefined ? 1 : 0.4) : 0);
+          // Friction: scrub sideways speed while lying or standing on the floor,
+          // once a step however many times the floor was met.
+          if (j.fl !== fl) { j.fl = fl; j.px = j.x - (j.x - j.px) * FLOOR_FRICTION; }
         }
       }
     }
@@ -743,6 +775,17 @@
             if (blowMask) {
               w.x.globalCompositeOperation = 'destination-out';
               w.x.drawImage(blowMask, 0, 0);
+              // The part of a dress above its waist that sits on the chest goes
+              // with the chest, or the bare chest is drawn over the dress.
+              if (part.offset) {
+                const t = mkRead(CW, CH);
+                t.x.drawImage(blow, 0, 0);
+                t.x.clearRect(0, blowY, CW, CH - blowY);
+                t.x.globalCompositeOperation = 'destination-in';
+                shape(t.x, part.region);
+                w.x.globalCompositeOperation = 'source-over';
+                w.x.drawImage(t.c, 0, 0);
+              }
             }
             if (!armArt && stiff && !part.offset) {
               const t = mkRead(CW, CH);
@@ -776,6 +819,8 @@
               // Cut along the line, not by the skirt's own soft edge, or a
               // faint ghost of its hem stays behind when it lifts.
               t.x.clearRect(0, blowY, CW, CH - blowY);
+              t.x.globalCompositeOperation = 'destination-out';
+              for (const o of regionParts) if (o.offset) shape(t.x, o.region);
               w.x.globalCompositeOperation = 'source-over';
               w.x.drawImage(t.c, 0, 0);
             }
@@ -822,8 +867,21 @@
           c.getContext('2d').drawImage(h.c, -bx.x0, -bx.y0);
           const pv = CFG.particles.P, ch = CFG.particles.N;
           const at = out.findIndex(o => o.id === 'body') + 1;
+          // The skirt's width, row by row, so draw() can stretch it over the legs.
+          const bandH = Math.max(1, Math.round(1.5 * cs));
+          const px = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data;
+          const bands = [];
+          for (let y0 = 0; y0 < c.height; y0 += bandH) {
+            const y1 = Math.min(c.height, y0 + bandH);
+            let x0 = c.width, x1 = -1;
+            for (let y = y0; y < y1; y++) {
+              for (let x = 0; x < c.width; x++) if (px[(y * c.width + x) * 4 + 3] > 20) { if (x < x0) x0 = x; break; }
+              for (let x = c.width - 1; x >= 0; x--) if (px[(y * c.width + x) * 4 + 3] > 20) { if (x > x1) x1 = x; break; }
+            }
+            bands.push({ y0, y1, x0, x1: x1 + 1 });
+          }
           out.splice(at, 0, {
-            id: 'skirt', pivot: 'P', child: 'N', canvas: c, flare: blowY / cs,
+            id: 'skirt', pivot: 'P', child: 'N', canvas: c, flare: blowY / cs, bands,
             ox: pv.x * cs - bx.x0, oy: pv.y * cs - bx.y0,
             restAngle: Math.atan2(ch.y - pv.y, ch.x - pv.x),
           });
@@ -932,7 +990,8 @@
           ctx.scale(1 + SKIRT_WIDEN * lift, 1 - SKIRT_FOLD * lift);
           ctx.translate(0, -hy);
         }
-        ctx.drawImage(part.canvas, -part.ox * inv, -part.oy * inv, part.canvas.width * inv, part.canvas.height * inv);
+        if (part.bands) this.drawSkirt(ctx, part, ax, ay, ang, inv);
+        else ctx.drawImage(part.canvas, -part.ox * inv, -part.oy * inv, part.canvas.width * inv, part.canvas.height * inv);
         ctx.restore();
         placed[part.id] = { x: ax, y: ay, ang, pivot: part.pivot };
         if (part.id === 'body') this.drawShoulders(ctx, originX, originY, th, placed, 'armpits');
@@ -941,6 +1000,101 @@
       // the shoulders, and drawn under it the lines vanished, leaving the arms
       // looking stuck straight into the chest.
       this.drawShoulders(ctx, originX, originY, th, placed, 'shoulders');
+    }
+
+    // The skirt, drawn in horizontal strips. The legs swing under it, so where a
+    // leg would stick out through the side of the skirt the strips there are
+    // stretched sideways until the skirt covers it again (a bell held out by the
+    // legs). Drawn in the skirt's own frame: (ax, ay) is the pivot, `ang` its turn.
+    drawSkirt(ctx, part, ax, ay, ang, inv) {
+      const cv = part.canvas, bands = part.bands, k = this.k;
+      const cos = Math.cos(ang), sin = Math.sin(ang);
+      const drop = (CFG.LEG_DROP || 0) * k;
+      const toLocal = (p, dy) => {
+        const dx = p.x - ax, ddy = p.y - ay;
+        return [dx * cos + ddy * sin, -dx * sin + ddy * cos + dy];
+      };
+      const n = bands.length;
+      const top = -part.oy * inv, bandY = i => top + bands[i].y0 * inv, bandMid = i => top + (bands[i].y0 + bands[i].y1) / 2 * inv;
+      const needL = new Array(n).fill(Infinity), needR = new Array(n).fill(-Infinity);
+      for (const [hip, foot] of [['HipL', 'FL'], ['HipR', 'FR']]) {
+        const h = toLocal(this.p[hip], drop), f = toLocal(this.p[foot], drop);
+        // A little past the ankle, to the sole.
+        const ex = (f[0] - h[0]) * LEG_REACH, ey = (f[1] - h[1]) * LEG_REACH;
+        const steps = 14;
+        for (let s = 0; s <= steps; s++) {
+          const sx = h[0] + ex * s / steps, sy = h[1] + ey * s / steps;
+          for (let i = 0; i < n; i++) {
+            const hw = (LEG_HALF_TOP + (LEG_HALF_SOLE - LEG_HALF_TOP) * s / steps) * k;
+            const dy = Math.abs(bandMid(i) - sy);
+            if (dy >= hw) continue;
+            const dx = Math.sqrt(hw * hw - dy * dy);
+            if (sx - dx < needL[i]) needL[i] = sx - dx;
+            if (sx + dx > needR[i]) needR[i] = sx + dx;
+          }
+        }
+      }
+      // Once the skirt has been held out it stays out down to the hem.
+      for (let i = 1; i < n; i++) {
+        if (needL[i - 1] < needL[i]) needL[i] = needL[i - 1];
+        if (needR[i - 1] > needR[i]) needR[i] = needR[i - 1];
+      }
+      // How far each side of the skirt must grow to cover the legs, as a scale
+      // about the skirt's centre line. Worked out from the skirt's overall width
+      // at each height (not each strip's own edge, which is ragged along the hem),
+      // and smoothed looking down the skirt, never less than what is needed.
+      const pad = SKIRT_PAD * k;
+      const lw = bands.map(b => Math.max(0, (part.ox - b.x0) * inv)), rw = bands.map(b => Math.max(0, (b.x1 - part.ox) * inv));
+      const env = (arr, i) => { let m = 0; for (let j = Math.max(0, i - 8); j <= Math.min(n - 1, i + 8); j++) if (arr[j] > m) m = arr[j]; return m; };
+      const scL = [], scR = [];
+      let most = 0;
+      for (let i = 0; i < n; i++) {
+        const eL = env(lw, i), eR = env(rw, i);
+        const xl = eL > 0 ? Math.max(0, -needL[i] + pad - eL) : 0, xr = eR > 0 ? Math.max(0, needR[i] + pad - eR) : 0;
+        scL.push(eL > 0 ? xl / eL : 0); scR.push(eR > 0 ? xr / eR : 0);
+        most = Math.max(most, xl, xr);
+      }
+      if (most < 0.75) {
+        ctx.drawImage(cv, -part.ox * inv, -part.oy * inv, cv.width * inv, cv.height * inv);
+        return;
+      }
+      const ahead = arr => {
+        let out = arr;
+        for (let pass = 0; pass < 2; pass++) {
+          const src = out;
+          out = src.map((_, i) => {
+            let sum = 0, c = 0;
+            for (let j = i; j < Math.min(n, i + SKIRT_SMOOTH); j++) { sum += src[j]; c++; }
+            return sum / c;
+          });
+        }
+        return out;
+      };
+      const sL = ahead(scL), sR = ahead(scR);
+      // Each strip keeps its two edges (the outline) as they were drawn and only
+      // moves them out, stretching the plain middle between them, so the outline
+      // doesn't thicken, thin or break up where the skirt is held out.
+      const edge = Math.max(2, Math.round(SKIRT_EDGE * this.artScale));
+      for (let i = 0; i < n; i++) {
+        const b = bands[i];
+        if (b.x1 <= b.x0) continue;
+        const eL = env(lw, i), eR = env(rw, i);
+        // Nothing at the waist itself, so the stretched skirt still joins the bodice.
+        const ease = Math.max(0, Math.min(1, bandMid(i) / k / SKIRT_EASE));
+        const mL = ease * Math.max(sL[i], scL[i]) * eL, mR = ease * Math.max(sR[i], scR[i]) * eR;
+        const sh = Math.min(cv.height - b.y0, b.y1 - b.y0 + 1), dy = bandY(i), dh = (b.y1 - b.y0) * inv + 0.6;
+        const l0 = (b.x0 - part.ox) * inv, r0 = (b.x1 - part.ox) * inv;
+        // The thin slivers under a wavy hem are left alone: stretched they would
+        // show as a faint line below it.
+        if (b.x1 - b.x0 < 0.7 * (eL + eR) * this.artScale / inv || b.x1 - b.x0 <= 2 * edge + 2) {
+          ctx.drawImage(cv, b.x0, b.y0, b.x1 - b.x0, sh, l0, dy, r0 - l0, dh);
+          continue;
+        }
+        ctx.drawImage(cv, b.x0, b.y0, edge, sh, l0 - mL, dy, edge * inv, dh);
+        ctx.drawImage(cv, b.x1 - edge, b.y0, edge, sh, r0 + mR - edge * inv, dy, edge * inv, dh);
+        const cx0 = l0 - mL + edge * inv, cx1 = r0 + mR - edge * inv;
+        ctx.drawImage(cv, b.x0 + edge - 1, b.y0, b.x1 - b.x0 - 2 * edge + 2, sh, cx0 - inv, dy, cx1 - cx0 + 2 * inv, dh);
+      }
     }
 
     // Redraw each shoulder line from the neck (on the body) to the arm, wherever
